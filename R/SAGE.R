@@ -10,6 +10,11 @@
 #' SAGE marginalizes features by integrating over their distribution.
 #' This is approximated by averaging predictions over a reference dataset.
 #'
+#' SAGE values are reductions in the measure's score relative to the empty coalition,
+#' `score(empty) - score(S)`, so that positive values mean the feature improves performance.
+#' For measures that are maximized (`measure$minimize = FALSE`, e.g. `classif.acc`) the scores are
+#' negated internally, so the sign convention is the same for all measures.
+#'
 #' **Standard Error Calculation**: The standard errors (SE) reported in
 #' `$convergence_history` reflect the uncertainty in Shapley value estimation
 #' across different random permutations within a single resampling iteration.
@@ -516,6 +521,11 @@ SAGE = R6Class(
       # Private method (needs self$task and self$measure)
       coalition_losses = private$.calculate_coalition_losses(avg_preds, n_test, test_dt)
 
+      # SAGE values are score reductions loss(empty) - loss(S). Negating the scores of a
+      # measure that is maximized (e.g. classif.acc) keeps "positive = helps" for all measures.
+      if (isFALSE(self$measure$minimize)) {
+        coalition_losses = -coalition_losses
+      }
       coalition_losses
     },
 

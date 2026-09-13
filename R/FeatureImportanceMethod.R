@@ -434,8 +434,10 @@ FeatureImportanceMethod = R6Class(
       if ("importance" %in% colnames(private$.scores)) {
         # If there is already an importance variable in the stored scores like in SAGE,
         # we can't calculate pre/post scores like in PFI, LOCO etc,
-        # individual "scores" would have different meaning there
-        return(private$.scores)
+        # individual "scores" would have different meaning there.
+        # Return a copy so callers (e.g. standardization in $importance()) cannot
+        # mutate the stored scores by reference.
+        return(data.table::copy(private$.scores))
       }
 
       relation = resolve_param(relation, self$param_set$values$relation, "difference")

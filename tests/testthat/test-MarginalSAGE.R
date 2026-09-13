@@ -363,3 +363,32 @@ test_that("coalition-loss direct measure$fun path matches per-coalition $score()
 
   expect_equal(fast, slow)
 })
+
+test_that("maximized measures yield the same SAGE values as their minimized counterpart", {
+  # classif.acc = 1 - classif.ce per coalition, so the score reductions must coincide
+  # once the maximized measure's scores are negated internally.
+  task = tgen("2dnormals")$generate(n = 100)
+  learner = lrn("classif.rpart", predict_type = "prob")
+  resampling = rsmp("holdout")$instantiate(task)
+
+  set.seed(2311)
+  ce = MarginalSAGE$new(task, learner, msr("classif.ce"), resampling, n_permutations = 5L, n_samples = 20L)
+  ce$compute()
+  set.seed(2311)
+  acc = MarginalSAGE$new(task, learner, msr("classif.acc"), resampling, n_permutations = 5L, n_samples = 20L)
+  acc$compute()
+
+  expect_equal(acc$importance()$importance, ce$importance()$importance, tolerance = 1e-10)
+  expect_gt(sum(acc$importance()$importance), 0)
+})
+
+test_that("standardize = TRUE does not mutate stored scores", {
+  set.seed(6389)
+  task = sim_dgp_independent(n = 150)
+  sage = MarginalSAGE$new(task, lrn("regr.rpart"), n_permutations = 3L, n_samples = 20L)
+  sage$compute()
+  before = data.table::copy(sage$scores())
+  sage$importance(standardize = TRUE)
+  sage$importance(standardize = TRUE)
+  expect_equal(sage$scores(), before)
+})
