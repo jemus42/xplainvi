@@ -27,10 +27,10 @@ Inherited methods
 - [`FeatureImportanceMethod$importance()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-importance)
 - [`FeatureImportanceMethod$obs_loss()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-obs_loss)
 - [`FeatureImportanceMethod$print()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-print)
-- [`FeatureImportanceMethod$reset()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-reset)
 - [`FeatureImportanceMethod$scores()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-scores)
 - [`SAGE$compute()`](https://mlr-org.github.io/xplainfi/reference/SAGE.html#method-compute)
 - [`SAGE$plot_convergence()`](https://mlr-org.github.io/xplainfi/reference/SAGE.html#method-plot_convergence)
+- [`SAGE$reset()`](https://mlr-org.github.io/xplainfi/reference/SAGE.html#method-reset)
 
 ------------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ Creates a new instance of the MarginalSAGE class.
       batch_size = 5000L,
       n_samples = 100L,
       early_stopping = FALSE,
-      se_threshold = 0.01,
+      se_threshold = 0.025,
       min_permutations = 10L,
       check_interval = 1L
     )

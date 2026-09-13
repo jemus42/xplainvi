@@ -135,6 +135,8 @@ permutations:
 ``` r
 
 marginal_sage$plot_convergence()
+#> Warning: Removed 4 rows containing missing values or values outside the scale range
+#> (`geom_ribbon()`).
 ```
 
 ![Line plot with permutation number on x-axis and SAGE value on y-axis.
@@ -144,8 +146,8 @@ feature.](sage-methods_files/figure-html/convergence-marginal-1.png)
 ### Early Stopping Based on Convergence
 
 SAGE supports early stopping to save computation time when the
-importance values have converged. By default, early stopping is enabled
-with `early_stopping = TRUE`. Convergence is detected by monitoring the
+importance values have converged. It is off by default; enable it with
+`early_stopping = TRUE`. Convergence is detected by monitoring the
 standard error (SE) of the SAGE value estimates in the first resampling
 iteration.
 
@@ -156,10 +158,14 @@ Convergence is detected when:
 \\ \max_j \left(\frac{SE_j}{\max_i(\text{SAGE}\_i) -
 \min_i(\text{SAGE}\_i)}\right) \< \text{threshold} \\
 
-The default threshold is `se_threshold = 0.01` (1%), meaning convergence
-occurs when the relative SE is below 1% of the importance range for all
-features, which is equivalent to the approach in the Python
-implementation in the `fippy` package.
+The default threshold is `se_threshold = 0.025` (2.5%), meaning
+convergence occurs when the relative SE is below 2.5% of the importance
+range for all features, which is the criterion and default of the Python
+`sage` package.
+
+With early stopping, `n_permutations` is an upper bound rather than a
+planned cost: if the criterion is not met within it, the values are
+returned with a warning.
 
 You can customize convergence detection in `$compute()`:
 
@@ -172,18 +178,18 @@ sage$compute(early_stopping = TRUE, se_threshold = 0.005, min_permutations = 5L)
 sage$compute(early_stopping = FALSE)
 ```
 
-After computation, you can check convergence status:
+After computation, `$budget` reports the requested and actually used
+effort, the implied number of evaluated coalitions, and whether the
+criterion was met:
 
 ``` r
 
-marginal_sage$converged  # TRUE if converged early
-marginal_sage$n_permutations_used  # Actual permutations used
+marginal_sage$budget
 ```
 
 If a resampling with multiple iterations (i.e., not holdout) is
-supplied, the value of `n_permutations_used` will be set as the value
-for `n_permutations` in all subsequent iterations to avoid some
-computational overhead.
+supplied, the budget used by the first iteration is reused for all
+subsequent iterations to avoid some computational overhead.
 
 ## Conditional SAGE
 
@@ -220,6 +226,8 @@ noise).](sage-methods_files/figure-html/conditional-sage-plot-1.png)
 ``` r
 
 conditional_sage$plot_convergence()
+#> Warning: Removed 4 rows containing missing values or values outside the scale range
+#> (`geom_ribbon()`).
 ```
 
 ![Line plot with permutation number on x-axis and SAGE value on y-axis.

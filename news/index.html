@@ -62,6 +62,23 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="xplainfi-development-version">xplainfi (development version)<a class="anchor" aria-label="anchor" href="#xplainfi-development-version"></a></h2>
 <div class="section level3">
+<h3 id="behavior-changes-development-version">Behavior changes<a class="anchor" aria-label="anchor" href="#behavior-changes-development-version"></a></h3>
+<ul><li>
+<code>SAGE</code> methods: <code>se_threshold</code> now defaults to <code>0.025</code> (was <code>0.01</code>), matching the convergence criterion of the Python <code>sage</code> package, and <code>early_stopping</code> defaults to <code>FALSE</code> in the base class as it already did in <code>MarginalSAGE</code> and <code>ConditionalSAGE</code>. <code>min_permutations</code> consistently defaults to <code>10L</code> (the parameter set and <code>$compute()</code> fallback previously used <code>3L</code>).</li>
+<li>
+<code>SAGE</code> methods: with <code>early_stopping = TRUE</code>, exhausting <code>n_permutations</code> without meeting the criterion now warns instead of passing silently.</li>
+<li>
+<code>SAGE$budget</code> is a new read-only accessor reporting the estimator, its budget unit, the requested and actually used effort, the resulting number of coalition evaluations (<code>n_evals</code>), and whether the run converged.
+<ul><li>It replaces the <code>$n_permutations_used</code> field, which is defunct (accessing it is an error).</li>
+<li>Accordingly, <code>$convergence_history</code> has <code>budget</code> and <code>n_evals</code> columns in place of <code>n_permutations</code>.</li>
+<li>The standard errors in <code>$convergence_history</code> are now Bessel-corrected and <code>NA</code> after a single permutation (previously <code>0</code>).</li>
+<li>
+<code>SAGE$reset()</code> now also clears <code>$convergence_history</code>, <code>$converged</code>, and <code>$budget</code>, which previously survived a reset.</li>
+</ul></li>
+<li>
+<code>SAGE$n_permutations</code> is deprecated in favor of <code>$param_set$values$n_permutations</code>; it remains readable and writable as an alias but warns once per session on access.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h3>
 <ul><li>
 <code>FeatureImportanceMethod$importance(standardize = TRUE)</code> no longer permanently modifies the stored scores of SAGE methods by reference; repeated calls previously compounded the standardization.</li>

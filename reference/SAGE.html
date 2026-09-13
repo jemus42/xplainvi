@@ -88,6 +88,17 @@ These SEs quantify the Monte Carlo sampling error for a fixed trained model
 and are only valid for inference about the importance of features for that
 specific model. They do not capture broader uncertainty from model variability
 across different train/test splits or resampling iterations.</p>
+<p><strong>Convergence and budget</strong>: With <code>early_stopping = TRUE</code>, sampling stops once the largest SE,
+relative to the spread of the SAGE values (<code>max(se) / (max(phi) - min(phi))</code>), falls below
+<code>se_threshold</code>.
+This is the criterion of the reference Python <code>sage</code> package.
+The budget argument (<code>n_permutations</code>) then acts as an upper bound rather than a planned cost:
+exhausting it without meeting the criterion returns the values with a warning.
+<code>$budget</code> reports what was actually spent and whether the criterion was met, and
+<code>$plot_convergence()</code> shows the trajectory that led there.
+Under resampling, only the first iteration runs the criterion and the remaining iterations
+reuse its budget, which keeps them comparable and avoids re-deriving the standard errors in
+every iteration.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -106,20 +117,42 @@ In <em>Advances in Neural Information Processing Systems</em>, volume 33, 17212â
     </div>
     <div class="section level2">
     <h2 id="public-fields">Public fields<a class="anchor" aria-label="anchor" href="#public-fields"></a></h2>
-    <p></p><div class="r6-fields"><dl><dt><code>n_permutations</code></dt>
-<dd><p>(<code>integer(1)</code>) Number of permutations to sample.</p></dd>
-
-
-    <dt><code>convergence_history</code></dt>
-<dd><p>(<code><a href="https://rdrr.io/pkg/data.table/man/data.table.html" class="external-link">data.table</a></code>) History of SAGE values during computation.</p></dd>
+    <p></p><div class="r6-fields"><dl><dt><code>convergence_history</code></dt>
+<dd><p>(<code><a href="https://rdrr.io/pkg/data.table/man/data.table.html" class="external-link">data.table</a></code>) History of SAGE values during computation.
+Columns <code>budget</code> (sampling effort in the estimator's own units, here permutations) and <code>n_evals</code>
+(the corresponding number of evaluated coalitions) index the checkpoints; see <code>$budget</code>.</p></dd>
 
 
     <dt><code>converged</code></dt>
-<dd><p>(<code>logical(1)</code>) Whether convergence was detected.</p></dd>
+<dd><p>(<code>logical(1)</code>) Whether the convergence criterion was met (<code>early_stopping = TRUE</code>).</p></dd>
+
+
+</dl><p></p></div>
+    </div>
+    <div class="section level2">
+    <h2 id="active-bindings">Active bindings<a class="anchor" aria-label="anchor" href="#active-bindings"></a></h2>
+    <p></p><div class="r6-active-bindings"><dl><dt><code>budget</code></dt>
+<dd><p>(<code><a href="https://rdrr.io/pkg/data.table/man/data.table.html" class="external-link">data.table</a></code>) Read-only one-row summary of the sampling
+effort: the <code>estimator</code>, its <code>unit</code> of budget, the <code>requested</code> upper bound, the amount <code>used</code>
+(below the request only with early stopping), the resulting number of coalition evaluations
+<code>n_evals</code> (one empty-coalition baseline plus <code>n_features</code> per permutation), and whether the
+computation <code>converged</code>.
+<code>used</code> and <code>n_evals</code> are <code>NA</code> before <code>$compute()</code>.
+With multiple resampling iterations it describes the first iteration, whose budget the
+remaining ones reuse (see <code>early_stopping</code>).</p></dd>
 
 
     <dt><code>n_permutations_used</code></dt>
-<dd><p>(<code>integer(1)</code>) Actual number of permutations used.</p></dd>
+<dd><p>Defunct.
+Use <code>$budget</code> instead, which reports the effort spent alongside its unit and the implied
+number of coalition evaluations.</p></dd>
+
+
+    <dt><code>n_permutations</code></dt>
+<dd><p>(<code>integer(1)</code>) Deprecated.
+The permutation budget lives in the param_set; use <code>$param_set$values$n_permutations</code> instead.
+This alias is kept for backward compatibility with the field of the same name in
+earlier releases and warns on access.</p></dd>
 
 
 </dl><p></p></div>
@@ -131,12 +164,12 @@ In <em>Advances in Neural Information Processing Systems</em>, volume 33, 17212â
 <h3 id="public-methods">Public methods<a class="anchor" aria-label="anchor" href="#public-methods"></a></h3>
 <p></p><ul><li><p><a href="#method-SAGE-initialize"><code>SAGE$new()</code></a></p></li>
 <li><p><a href="#method-SAGE-compute"><code>SAGE$compute()</code></a></p></li>
+<li><p><a href="#method-SAGE-reset"><code>SAGE$reset()</code></a></p></li>
 <li><p><a href="#method-SAGE-plot_convergence"><code>SAGE$plot_convergence()</code></a></p></li>
 <li><p><a href="#method-SAGE-clone"><code>SAGE$clone()</code></a></p></li>
 </ul></div><p><details open><summary>Inherited methods</summary><ul><li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="importance"><a href="FeatureImportanceMethod.html#method-importance"><code>FeatureImportanceMethod$importance()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="obs_loss"><a href="FeatureImportanceMethod.html#method-obs_loss"><code>FeatureImportanceMethod$obs_loss()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="print"><a href="FeatureImportanceMethod.html#method-print"><code>FeatureImportanceMethod$print()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="reset"><a href="FeatureImportanceMethod.html#method-reset"><code>FeatureImportanceMethod$reset()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="scores"><a href="FeatureImportanceMethod.html#method-scores"><code>FeatureImportanceMethod$scores()</code></a></span></li>
 </ul></details></p><hr><a id="method-SAGE-initialize"></a><div class="section">
 <h3 id="sage-new-"><code>SAGE$new()</code><a class="anchor" aria-label="anchor" href="#sage-new-"></a></h3>
@@ -151,8 +184,8 @@ In <em>Advances in Neural Information Processing Systems</em>, volume 33, 17212â
 <span>  n_permutations <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  batch_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
 <span>  n_samples <span class="op">=</span> <span class="fl">100L</span>,</span>
-<span>  early_stopping <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  se_threshold <span class="op">=</span> <span class="fl">0.01</span>,</span>
+<span>  early_stopping <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  se_threshold <span class="op">=</span> <span class="fl">0.025</span>,</span>
 <span>  min_permutations <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  check_interval <span class="op">=</span> <span class="fl">1L</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
@@ -174,17 +207,22 @@ For <a href="MarginalSAGE.html">MarginalSAGE</a>, this is the number of marginal
 For <a href="ConditionalSAGE.html">ConditionalSAGE</a>, this is the number of conditional samples per test instance retrieved from <code>sampler</code>.</p></dd>
 
       <dt><code>early_stopping</code></dt>
-<dd><p>(<code>logical(1)</code>: <code>TRUE</code>) Whether to enable early stopping based on convergence detection.</p></dd>
+<dd><p>(<code>logical(1)</code>: <code>FALSE</code>) Whether to stop once the convergence criterion is met,
+rather than spending the full budget.
+The budget then acts as an upper bound: if the criterion is not met within it, the values are
+returned with a warning and <code>$budget</code> reports <code>converged = FALSE</code>.</p></dd>
 
       <dt><code>se_threshold</code></dt>
-<dd><p>(<code>numeric(1)</code>: <code>0.01</code>) Convergence threshold for relative standard error.
+<dd><p>(<code>numeric(1)</code>: <code>0.025</code>) Convergence threshold for relative standard error.
 Convergence is detected when the maximum relative SE across all features falls below this threshold.
 Relative SE is calculated as SE divided by the range of importance values (max - min),
 making it scale-invariant across different loss metrics.
-Default of <code>0.01</code> means convergence when relative SE is below 1% of the importance range.</p></dd>
+The default of <code>0.025</code> (convergence once the relative SE is below 2.5% of the importance range) is
+the default of the Python <code>sage</code> package; the examples in Covert et al. (2020) use <code>0.01</code> to <code>0.02</code>.</p></dd>
 
       <dt><code>min_permutations</code></dt>
-<dd><p>(<code>integer(1)</code>: <code>10L</code>) Minimum permutations before checking for convergence. Convergence is judged based on the standard errors of the estimated SAGE values,
+<dd><p>(<code>integer(1)</code>: <code>10L</code>) Minimum permutations before checking for convergence.
+Convergence is judged based on the standard errors of the estimated SAGE values,
 which requires a sufficiently large number of samples (i.e., evaluated coalitions).</p></dd>
 
       <dt><code>check_interval</code></dt>
@@ -217,12 +255,12 @@ which requires a sufficiently large number of samples (i.e., evaluated coalition
 <dd><p>(<code>integer(1)</code>: <code>5000L</code>) Maximum number of observations to process in a single prediction call.</p></dd>
 
       <dt><code>early_stopping</code></dt>
-<dd><p>(<code>logical(1)</code>: <code>TRUE</code>) Whether to check for convergence and stop early.</p></dd>
+<dd><p>(<code>logical(1)</code>: <code>FALSE</code>) Whether to check for convergence and stop early.</p></dd>
 
       <dt><code>se_threshold</code></dt>
-<dd><p>(<code>numeric(1)</code>: <code>0.01</code>) Convergence threshold for relative standard error.
+<dd><p>(<code>numeric(1)</code>: <code>0.025</code>) Convergence threshold for relative standard error.
 SE is normalized by the range of importance values (max - min) to make convergence
-detection scale-invariant. Default <code>0.01</code> means convergence when relative SE &lt; 1%.</p></dd>
+detection scale-invariant. Default <code>0.025</code> means convergence when relative SE &lt; 2.5%.</p></dd>
 
       <dt><code>min_permutations</code></dt>
 <dd><p>(<code>integer(1)</code>: <code>10L</code>) Minimum permutations before checking convergence.</p></dd>
@@ -236,10 +274,20 @@ detection scale-invariant. Default <code>0.01</code> means convergence when rela
 
 </div>
 
+<p></p><hr><a id="method-SAGE-reset"></a><div class="section">
+<h3 id="sage-reset-"><code>SAGE$reset()</code><a class="anchor" aria-label="anchor" href="#sage-reset-"></a></h3>
+<p>Resets all stored fields populated by <code>$compute()</code>, including the convergence tracking
+(<code>$convergence_history</code>, <code>$converged</code>, <code>$budget</code>).</p><div class="section">
+<h4 id="usage-2">Usage<a class="anchor" aria-label="anchor" href="#usage-2"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">SAGE</span><span class="op">$</span><span class="fu">reset</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+</div>
+
 <p></p><hr><a id="method-SAGE-plot_convergence"></a><div class="section">
 <h3 id="sage-plot-convergence-"><code>SAGE$plot_convergence()</code><a class="anchor" aria-label="anchor" href="#sage-plot-convergence-"></a></h3>
 <p>Plot convergence history of SAGE values.</p><div class="section">
-<h4 id="usage-2">Usage<a class="anchor" aria-label="anchor" href="#usage-2"></a></h4>
+<h4 id="usage-3">Usage<a class="anchor" aria-label="anchor" href="#usage-3"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">SAGE</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span>features <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div><p></p><div class="section">
 <h4 id="arguments-2">Arguments<a class="anchor" aria-label="anchor" href="#arguments-2"></a></h4>
@@ -258,7 +306,7 @@ detection scale-invariant. Default <code>0.01</code> means convergence when rela
 <p></p><hr><a id="method-SAGE-clone"></a><div class="section">
 <h3 id="sage-clone-"><code>SAGE$clone()</code><a class="anchor" aria-label="anchor" href="#sage-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-3">Usage<a class="anchor" aria-label="anchor" href="#usage-3"></a></h4>
+<h4 id="usage-4">Usage<a class="anchor" aria-label="anchor" href="#usage-4"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">SAGE</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div><p></p><div class="section">
 <h4 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h4>

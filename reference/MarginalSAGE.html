@@ -86,10 +86,10 @@ This is the standard SAGE implementation.</p>
 </ul></div><p><details><summary>Inherited methods</summary><ul><li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="importance"><a href="FeatureImportanceMethod.html#method-importance"><code>FeatureImportanceMethod$importance()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="obs_loss"><a href="FeatureImportanceMethod.html#method-obs_loss"><code>FeatureImportanceMethod$obs_loss()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="print"><a href="FeatureImportanceMethod.html#method-print"><code>FeatureImportanceMethod$print()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="reset"><a href="FeatureImportanceMethod.html#method-reset"><code>FeatureImportanceMethod$reset()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="scores"><a href="FeatureImportanceMethod.html#method-scores"><code>FeatureImportanceMethod$scores()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="SAGE" data-id="compute"><a href="SAGE.html#method-compute"><code>SAGE$compute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="SAGE" data-id="plot_convergence"><a href="SAGE.html#method-plot_convergence"><code>SAGE$plot_convergence()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="xplainfi" data-topic="SAGE" data-id="reset"><a href="SAGE.html#method-reset"><code>SAGE$reset()</code></a></span></li>
 </ul></details></p><hr><a id="method-MarginalSAGE-initialize"></a><div class="section">
 <h3 id="marginalsage-new-"><code>MarginalSAGE$new()</code><a class="anchor" aria-label="anchor" href="#marginalsage-new-"></a></h3>
 <p>Creates a new instance of the MarginalSAGE class.</p><div class="section">
@@ -104,7 +104,7 @@ This is the standard SAGE implementation.</p>
 <span>  batch_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
 <span>  n_samples <span class="op">=</span> <span class="fl">100L</span>,</span>
 <span>  early_stopping <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  se_threshold <span class="op">=</span> <span class="fl">0.01</span>,</span>
+<span>  se_threshold <span class="op">=</span> <span class="fl">0.025</span>,</span>
 <span>  min_permutations <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  check_interval <span class="op">=</span> <span class="fl">1L</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>

@@ -29,6 +29,19 @@ importance of features for that specific model. They do not capture
 broader uncertainty from model variability across different train/test
 splits or resampling iterations.
 
+**Convergence and budget**: With `early_stopping = TRUE`, sampling stops
+once the largest SE, relative to the spread of the SAGE values
+(`max(se) / (max(phi) - min(phi))`), falls below `se_threshold`. This is
+the criterion of the reference Python `sage` package. The budget
+argument (`n_permutations`) then acts as an upper bound rather than a
+planned cost: exhausting it without meeting the criterion returns the
+values with a warning. `$budget` reports what was actually spent and
+whether the criterion was met, and `$plot_convergence()` shows the
+trajectory that led there. Under resampling, only the first iteration
+runs the criterion and the remaining iterations reuse its budget, which
+keeps them comparable and avoids re-deriving the standard errors in
+every iteration.
+
 ## References
 
 Covert I, Lundberg S, Lee S (2020). “Understanding Global Feature
@@ -48,22 +61,44 @@ Information Processing Systems*, volume 33, 17212–17223.
 
 ## Public fields
 
-- `n_permutations`:
-
-  (`integer(1)`) Number of permutations to sample.
-
 - `convergence_history`:
 
   ([`data.table`](https://rdrr.io/pkg/data.table/man/data.table.html))
-  History of SAGE values during computation.
+  History of SAGE values during computation. Columns `budget` (sampling
+  effort in the estimator's own units, here permutations) and `n_evals`
+  (the corresponding number of evaluated coalitions) index the
+  checkpoints; see `$budget`.
 
 - `converged`:
 
-  (`logical(1)`) Whether convergence was detected.
+  (`logical(1)`) Whether the convergence criterion was met
+  (`early_stopping = TRUE`).
+
+## Active bindings
+
+- `budget`:
+
+  ([`data.table`](https://rdrr.io/pkg/data.table/man/data.table.html))
+  Read-only one-row summary of the sampling effort: the `estimator`, its
+  `unit` of budget, the `requested` upper bound, the amount `used`
+  (below the request only with early stopping), the resulting number of
+  coalition evaluations `n_evals` (one empty-coalition baseline plus
+  `n_features` per permutation), and whether the computation
+  `converged`. `used` and `n_evals` are `NA` before `$compute()`. With
+  multiple resampling iterations it describes the first iteration, whose
+  budget the remaining ones reuse (see `early_stopping`).
 
 - `n_permutations_used`:
 
-  (`integer(1)`) Actual number of permutations used.
+  Defunct. Use `$budget` instead, which reports the effort spent
+  alongside its unit and the implied number of coalition evaluations.
+
+- `n_permutations`:
+
+  (`integer(1)`) Deprecated. The permutation budget lives in the
+  param_set; use `$param_set$values$n_permutations` instead. This alias
+  is kept for backward compatibility with the field of the same name in
+  earlier releases and warns on access.
 
 ## Methods
 
@@ -72,6 +107,8 @@ Information Processing Systems*, volume 33, 17212–17223.
 - [`SAGE$new()`](#method-SAGE-initialize)
 
 - [`SAGE$compute()`](#method-SAGE-compute)
+
+- [`SAGE$reset()`](#method-SAGE-reset)
 
 - [`SAGE$plot_convergence()`](#method-SAGE-plot_convergence)
 
@@ -82,7 +119,6 @@ Inherited methods
 - [`FeatureImportanceMethod$importance()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-importance)
 - [`FeatureImportanceMethod$obs_loss()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-obs_loss)
 - [`FeatureImportanceMethod$print()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-print)
-- [`FeatureImportanceMethod$reset()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-reset)
 - [`FeatureImportanceMethod$scores()`](https://mlr-org.github.io/xplainfi/reference/FeatureImportanceMethod.html#method-scores)
 
 ------------------------------------------------------------------------
@@ -102,8 +138,8 @@ Creates a new instance of the SAGE class.
       n_permutations = 10L,
       batch_size = 5000L,
       n_samples = 100L,
-      early_stopping = TRUE,
-      se_threshold = 0.01,
+      early_stopping = FALSE,
+      se_threshold = 0.025,
       min_permutations = 10L,
       check_interval = 1L
     )
@@ -138,17 +174,21 @@ Creates a new instance of the SAGE class.
 
 - `early_stopping`:
 
-  (`logical(1)`: `TRUE`) Whether to enable early stopping based on
-  convergence detection.
+  (`logical(1)`: `FALSE`) Whether to stop once the convergence criterion
+  is met, rather than spending the full budget. The budget then acts as
+  an upper bound: if the criterion is not met within it, the values are
+  returned with a warning and `$budget` reports `converged = FALSE`.
 
 - `se_threshold`:
 
-  (`numeric(1)`: `0.01`) Convergence threshold for relative standard
+  (`numeric(1)`: `0.025`) Convergence threshold for relative standard
   error. Convergence is detected when the maximum relative SE across all
   features falls below this threshold. Relative SE is calculated as SE
   divided by the range of importance values (max - min), making it
-  scale-invariant across different loss metrics. Default of `0.01` means
-  convergence when relative SE is below 1% of the importance range.
+  scale-invariant across different loss metrics. The default of `0.025`
+  (convergence once the relative SE is below 2.5% of the importance
+  range) is the default of the Python `sage` package; the examples in
+  Covert et al. (2020) use `0.01` to `0.02`.
 
 - `min_permutations`:
 
@@ -191,15 +231,15 @@ Compute SAGE values.
 
 - `early_stopping`:
 
-  (`logical(1)`: `TRUE`) Whether to check for convergence and stop
+  (`logical(1)`: `FALSE`) Whether to check for convergence and stop
   early.
 
 - `se_threshold`:
 
-  (`numeric(1)`: `0.01`) Convergence threshold for relative standard
+  (`numeric(1)`: `0.025`) Convergence threshold for relative standard
   error. SE is normalized by the range of importance values (max - min)
-  to make convergence detection scale-invariant. Default `0.01` means
-  convergence when relative SE \< 1%.
+  to make convergence detection scale-invariant. Default `0.025` means
+  convergence when relative SE \< 2.5%.
 
 - `min_permutations`:
 
@@ -209,6 +249,17 @@ Compute SAGE values.
 - `check_interval`:
 
   (`integer(1)`: `1L`) Check convergence every N permutations.
+
+------------------------------------------------------------------------
+
+### `SAGE$reset()`
+
+Resets all stored fields populated by `$compute()`, including the
+convergence tracking (`$convergence_history`, `$converged`, `$budget`).
+
+#### Usage
+
+    SAGE$reset()
 
 ------------------------------------------------------------------------
 

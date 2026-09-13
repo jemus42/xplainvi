@@ -217,14 +217,16 @@ build coalitions, resulting in 61 evaluated coalitions
 <p>We can also keep track of the SAGE value approximation across
 permutations:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">marginal_sage</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">marginal_sage</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: Removed 4 rows containing missing values or values outside the scale range</span></span>
+<span><span class="co">#&gt; (`geom_ribbon()`).</span></span></code></pre></div>
 <p><img src="sage-methods_files/figure-html/convergence-marginal-1.png" class="r-plt" alt="Line plot with permutation number on x-axis and SAGE value on y-axis. Multiple colored lines showing convergence trajectory for each feature." width="768"></p>
 <div class="section level3">
 <h3 id="early-stopping-based-on-convergence">Early Stopping Based on Convergence<a class="anchor" aria-label="anchor" href="#early-stopping-based-on-convergence"></a>
 </h3>
 <p>SAGE supports early stopping to save computation time when the
-importance values have converged. By default, early stopping is enabled
-with <code>early_stopping = TRUE</code>. Convergence is detected by
+importance values have converged. It is off by default; enable it with
+<code>early_stopping = TRUE</code>. Convergence is detected by
 monitoring the standard error (SE) of the SAGE value estimates in the
 first resampling iteration.</p>
 <p>SAGE normalizes the SE by the range of their values (max - min) to
@@ -234,10 +236,13 @@ metrics. Convergence is detected when:</p>
 \max_j \left(\frac{SE_j}{\max_i(\text{SAGE}_i) -
 \min_i(\text{SAGE}_i)}\right) &lt; \text{threshold}
 \]</span></p>
-<p>The default threshold is <code>se_threshold = 0.01</code> (1%),
-meaning convergence occurs when the relative SE is below 1% of the
-importance range for all features, which is equivalent to the approach
-in the Python implementation in the <code>fippy</code> package.</p>
+<p>The default threshold is <code>se_threshold = 0.025</code> (2.5%),
+meaning convergence occurs when the relative SE is below 2.5% of the
+importance range for all features, which is the criterion and default of
+the Python <code>sage</code> package.</p>
+<p>With early stopping, <code>n_permutations</code> is an upper bound
+rather than a planned cost: if the criterion is not met within it, the
+values are returned with a warning.</p>
 <p>You can customize convergence detection in
 <code>$compute()</code>:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -246,14 +251,14 @@ in the Python implementation in the <code>fippy</code> package.</p>
 <span></span>
 <span><span class="co"># Disable early stopping to always run all permutations</span></span>
 <span><span class="va">sage</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span>early_stopping <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<p>After computation, you can check convergence status:</p>
+<p>After computation, <code>$budget</code> reports the requested and
+actually used effort, the implied number of evaluated coalitions, and
+whether the criterion was met:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">marginal_sage</span><span class="op">$</span><span class="va">converged</span>  <span class="co"># TRUE if converged early</span></span>
-<span><span class="va">marginal_sage</span><span class="op">$</span><span class="va">n_permutations_used</span>  <span class="co"># Actual permutations used</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">marginal_sage</span><span class="op">$</span><span class="va">budget</span></span></code></pre></div>
 <p>If a resampling with multiple iterations (i.e., not holdout) is
-supplied, the value of <code>n_permutations_used</code> will be set as
-the value for <code>n_permutations</code> in all subsequent iterations
-to avoid some computational overhead.</p>
+supplied, the budget used by the first iteration is reused for all
+subsequent iterations to avoid some computational overhead.</p>
 </div>
 </div>
 <div class="section level2">
@@ -282,7 +287,9 @@ are correlated.</p>
 <p>Let’s visualize the conditional SAGE results:</p>
 <p><img src="sage-methods_files/figure-html/conditional-sage-plot-1.png" class="r-plt" alt="Bar chart with features on x-axis and SAGE values on y-axis. Bars colored by feature type (causal vs noise)." width="768"></p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">conditional_sage</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">conditional_sage</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: Removed 4 rows containing missing values or values outside the scale range</span></span>
+<span><span class="co">#&gt; (`geom_ribbon()`).</span></span></code></pre></div>
 <p><img src="sage-methods_files/figure-html/convergence-conditional-1.png" class="r-plt" alt="Line plot with permutation number on x-axis and SAGE value on y-axis. Multiple colored lines showing convergence trajectory for each feature." width="768"></p>
 </div>
 <div class="section level2">
