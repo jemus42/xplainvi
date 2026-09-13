@@ -45,7 +45,8 @@ ConditionalSAGE = R6Class(
 
     #' @description
     #' Creates a new instance of the ConditionalSAGE class.
-    #' @param task,learner,measure,resampling,features,n_permutations,batch_size,n_samples,early_stopping,se_threshold,min_permutations,check_interval Passed to [SAGE].
+    #' @param task,learner,measure,resampling,features,estimator,n_permutations,max_features Passed to [SAGE].
+    #' @param batch_size,n_samples,early_stopping,se_threshold,min_permutations,check_interval Passed to [SAGE].
     #' @param sampler ([ConditionalSampler]) Optional custom sampler. Defaults to [ConditionalARFSampler].
     initialize = function(
       task,
@@ -53,7 +54,9 @@ ConditionalSAGE = R6Class(
       measure = NULL,
       resampling = NULL,
       features = NULL,
-      n_permutations = 10L,
+      estimator = c("permutation", "exact"),
+      n_permutations = NULL,
+      max_features = 12L,
       sampler = NULL,
       batch_size = 5000L,
       n_samples = 100L,
@@ -80,7 +83,9 @@ ConditionalSAGE = R6Class(
         measure = measure,
         resampling = resampling,
         features = features,
+        estimator = estimator,
         n_permutations = n_permutations,
+        max_features = max_features,
         batch_size = batch_size,
         n_samples = n_samples,
         early_stopping = early_stopping,

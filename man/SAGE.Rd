@@ -27,6 +27,14 @@ and are only valid for inference about the importance of features for that
 specific model. They do not capture broader uncertainty from model variability
 across different train/test splits or resampling iterations.
 
+\strong{Estimators}: \code{estimator = "permutation"} (the default) is the permutation-sampling estimator of
+Covert et al. (2020), budgeted by \code{n_permutations}.
+\code{estimator = "exact"} enumerates all \code{2^n_features} coalitions and computes the Shapley values in closed
+form, so it has no coalition-sampling error and serves as a ground-truth reference for the sampling
+estimator on small feature sets (capped by \code{max_features}).
+"Exact" refers to coalition sampling only: the marginalization error controlled by \code{n_samples} remains,
+and for \link{ConditionalSAGE} the value function itself is a Monte Carlo estimate of the sampler.
+
 \strong{Convergence and budget}: With \code{early_stopping = TRUE}, sampling stops once the largest SE,
 relative to the spread of the SAGE values (\code{max(se) / (max(phi) - min(phi))}), falls below
 \code{se_threshold}.
@@ -58,7 +66,8 @@ In \emph{Advances in Neural Information Processing Systems}, volume 33, 17212--1
 Columns \code{budget} (sampling effort in the estimator's own units, here permutations) and \code{n_evals}
 (the corresponding number of evaluated coalitions) index the checkpoints; see \verb{$budget}.}
 
-    \item{\code{converged}}{(\code{logical(1)}) Whether the convergence criterion was met (\code{early_stopping = TRUE}).}
+    \item{\code{converged}}{(\code{logical(1)}) Whether the convergence criterion was met (\code{early_stopping = TRUE}).
+\code{NA} for the exact estimator, which enumerates all coalitions and has no criterion to meet.}
   }
   \if{html}{\out{</div>}}
 }
@@ -68,9 +77,10 @@ Columns \code{budget} (sampling effort in the estimator's own units, here permut
     \item{\code{budget}}{(\code{\link[data.table:data.table]{data.table}}) Read-only one-row summary of the sampling
 effort: the \code{estimator}, its \code{unit} of budget, the \code{requested} upper bound, the amount \code{used}
 (below the request only with early stopping), the resulting number of coalition evaluations
-\code{n_evals} (one empty-coalition baseline plus \code{n_features} per permutation), and whether the
-computation \code{converged}.
-\code{used} and \code{n_evals} are \code{NA} before \verb{$compute()}.
+\code{n_evals} (one empty-coalition baseline plus \code{n_features} per permutation; \code{2^n_features} for the
+exact estimator), and whether the computation \code{converged}.
+\code{used} and \code{n_evals} are \code{NA} before \verb{$compute()}; \code{converged} is \code{NA} for the exact estimator,
+which has no criterion to meet.
 With multiple resampling iterations it describes the first iteration, whose budget the
 remaining ones reuse (see \code{early_stopping}).}
 
@@ -116,7 +126,9 @@ earlier releases and warns on access.}
   measure = NULL,
   resampling = NULL,
   features = NULL,
-  n_permutations = 10L,
+  estimator = c("permutation", "exact"),
+  n_permutations = NULL,
+  max_features = 12L,
   batch_size = 5000L,
   n_samples = 100L,
   early_stopping = FALSE,
@@ -130,8 +142,22 @@ earlier releases and warns on access.}
     \if{html}{\out{<div class="arguments">}}
     \describe{
       \item{\code{task, learner, measure, resampling, features}}{Passed to FeatureImportanceMethod.}
-      \item{\code{n_permutations}}{(\code{integer(1)}: \code{10L}) Number of permutations to sample for SAGE value estimation.
-The total number of evaluated coalitions is \code{1 (empty) + n_permutations * n_features}.}
+      \item{\code{estimator}}{(\code{character(1)}: \code{"permutation"}) Shapley-value estimator.
+\code{"permutation"} is the permutation-sampling estimator of Covert et al. (2020), budgeted by
+\code{n_permutations}; \code{"exact"} enumerates all \code{2^n_features} coalitions (capped by \code{max_features}) and
+takes no budget.
+Both approximate the same SAGE values; setting \code{n_permutations} with \code{estimator = "exact"} is an error.
+Their costs are comparable through the number of evaluated coalitions,
+\code{1 + n_permutations * n_features} and \code{2^n_features}, respectively.
+\verb{$compute()} points out in a message (silenced by \code{xplain_opt(verbose = FALSE)}) when the sampling
+budget meets or exceeds the exact estimator's cost, since enumeration then removes the
+coalition-sampling error at no extra cost.}
+      \item{\code{n_permutations}}{(\code{integer(1)}: \code{NULL}) Number of permutations for \code{estimator = "permutation"}.
+Each permutation evaluates one coalition per feature, so the cost is \code{1 + n_permutations * n_features}
+evaluated coalitions.
+If unset, defaults to \code{10L}.}
+      \item{\code{max_features}}{(\code{integer(1)}: \code{12L}) Cap on the number of features for \code{estimator = "exact"},
+whose cost grows as \code{2^n_features}; construction aborts above it.}
       \item{\code{batch_size}}{(\code{integer(1)}: \code{5000L}) Maximum number of observations to process in a single prediction call.}
       \item{\code{n_samples}}{(\code{integer(1)}: \code{100L}) Number of samples to use for marginalizing out-of-coalition features.
 For \link{MarginalSAGE}, this is the number of marginal data samples ("background data" in other implementations).
@@ -182,7 +208,9 @@ which requires a sufficiently large number of samples (i.e., evaluated coalition
 SE is normalized by the range of importance values (max - min) to make convergence
 detection scale-invariant. Default \code{0.025} means convergence when relative SE < 2.5\%.}
       \item{\code{min_permutations}}{(\code{integer(1)}: \code{10L}) Minimum permutations before checking convergence.}
-      \item{\code{check_interval}}{(\code{integer(1)}: \code{1L}) Check convergence every N permutations.}
+      \item{\code{check_interval}}{(\code{integer(1)}: \code{1L}) Check convergence every N permutations.
+The convergence arguments only apply to \code{estimator = "permutation"}; passing them for the exact
+estimator is a warning.}
     }
     \if{html}{\out{</div>}}
   }

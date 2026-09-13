@@ -188,11 +188,43 @@ sage_marginal_contributions = function(perm_sublist, losses, baseline, feature_n
   list(sv = sv, sv_sq = sv_sq)
 }
 
-# Number of evaluated coalitions for a permutation budget: one empty-coalition baseline
-# plus m growing prefixes per permutation. The currency in which sampling estimators are
+# Number of evaluated coalitions: one empty-coalition baseline plus m growing prefixes per
+# permutation, or all 2^m for exact enumeration. The currency in which estimators are
 # comparable, unlike their own budget units.
-sage_n_evals = function(m, n_permutations) {
-  1 + n_permutations * m
+sage_n_evals = function(estimator, m, budget) {
+  if (identical(estimator, "exact")) 2^m else 1 + budget * m
+}
+
+sage_assert_exact_budget = function(m, max_features) {
+  if (m > max_features) {
+    cli::cli_abort(c(
+      "The exact estimator would enumerate {.val {2^m}} coalitions of {m} features.",
+      "i" = "This exceeds the {.arg max_features} cap ({max_features}); the cost grows as 2^n_features.",
+      "i" = "Increase {.arg max_features} to override, or use {.code estimator = \"permutation\"} instead."
+    ))
+  }
+  invisible(NULL)
+}
+
+# Point out a sampling budget that costs at least as much as enumeration. Skipped under
+# early stopping (the budget is then an upper bound) and for very small or very large
+# feature sets, where the comparison is moot.
+sage_inform_budget_vs_exact = function(m, n_permutations, early_stopping = FALSE) {
+  if (!xplain_opt("verbose") || early_stopping || m < 3L || m > 30L) {
+    return(invisible(NULL))
+  }
+  n_exact = 2^m
+  evals = sage_n_evals("permutation", m, n_permutations)
+  if (evals >= n_exact) {
+    cli::cli_inform(c(
+      "i" = "The permutation estimator will evaluate {evals} coalitions,
+             at least as many as enumerating all {n_exact} (2^{m}) coalitions.",
+      "i" = "{.code estimator = \"exact\"} computes SAGE values without coalition-sampling
+             error at the same or lower cost (for {.cls ConditionalSAGE}, oversampling can
+             still be deliberate; see the {.arg estimator} docs)."
+    ))
+  }
+  invisible(NULL)
 }
 
 # Convergence criterion of the reference Python `sage` package (`detect_convergence`):
