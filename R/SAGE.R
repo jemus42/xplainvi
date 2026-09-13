@@ -23,6 +23,18 @@
 #' specific model. They do not capture broader uncertainty from model variability
 #' across different train/test splits or resampling iterations.
 #'
+#' **Convergence and budget**: With `early_stopping = TRUE`, sampling stops once the largest SE,
+#' relative to the spread of the SAGE values (`max(se) / (max(phi) - min(phi))`), falls below
+#' `se_threshold`.
+#' This is the criterion of the reference Python `sage` package.
+#' The budget argument (`n_permutations`) then acts as an upper bound rather than a planned cost:
+#' exhausting it without meeting the criterion returns the values with a warning.
+#' `$budget` reports what was actually spent and whether the criterion was met, and
+#' `$plot_convergence()` shows the trajectory that led there.
+#' Under resampling, only the first iteration runs the criterion and the remaining iterations
+#' reuse its budget, which keeps them comparable and avoids re-deriving the standard errors in
+#' every iteration.
+#'
 #' @references
 #' `r print_bib("lundberg_2020")`
 #'
@@ -33,14 +45,12 @@ SAGE = R6Class(
   "SAGE",
   inherit = FeatureImportanceMethod,
   public = list(
-    #' @field n_permutations (`integer(1)`) Number of permutations to sample.
-    n_permutations = NULL,
     #' @field convergence_history ([`data.table`][data.table::data.table]) History of SAGE values during computation.
+    #'   Columns `budget` (sampling effort in the estimator's own units, here permutations) and `n_evals`
+    #'   (the corresponding number of evaluated coalitions) index the checkpoints; see `$budget`.
     convergence_history = NULL,
-    #' @field converged (`logical(1)`) Whether convergence was detected.
+    #' @field converged (`logical(1)`) Whether the convergence criterion was met (`early_stopping = TRUE`).
     converged = FALSE,
-    #' @field n_permutations_used (`integer(1)`) Actual number of permutations used.
-    n_permutations_used = NULL,
 
     #' @description
     #' Creates a new instance of the SAGE class.
@@ -51,14 +61,19 @@ SAGE = R6Class(
     #' @param n_samples (`integer(1)`: `100L`) Number of samples to use for marginalizing out-of-coalition features.
     #'   For [MarginalSAGE], this is the number of marginal data samples ("background data" in other implementations).
     #'   For [ConditionalSAGE], this is the number of conditional samples per test instance retrieved from `sampler`.
-    #' @param early_stopping (`logical(1)`: `TRUE`) Whether to enable early stopping based on convergence detection.
-    #' @param se_threshold (`numeric(1)`: `0.01`) Convergence threshold for relative standard error.
+    #' @param early_stopping (`logical(1)`: `FALSE`) Whether to stop once the convergence criterion is met,
+    #'   rather than spending the full budget.
+    #'   The budget then acts as an upper bound: if the criterion is not met within it, the values are
+    #'   returned with a warning and `$budget` reports `converged = FALSE`.
+    #' @param se_threshold (`numeric(1)`: `0.025`) Convergence threshold for relative standard error.
     #'   Convergence is detected when the maximum relative SE across all features falls below this threshold.
     #'   Relative SE is calculated as SE divided by the range of importance values (max - min),
     #'   making it scale-invariant across different loss metrics.
-    #'   Default of `0.01` means convergence when relative SE is below 1% of the importance range.
-    #' @param min_permutations (`integer(1)`: `10L`) Minimum permutations before checking for convergence. Convergence is judged based on the standard errors of the estimated SAGE values,
-    #' which requires a sufficiently large number of samples (i.e., evaluated coalitions).
+    #'   The default of `0.025` (convergence once the relative SE is below 2.5% of the importance range) is
+    #'   the default of the Python `sage` package; the examples in Covert et al. (2020) use `0.01` to `0.02`.
+    #' @param min_permutations (`integer(1)`: `10L`) Minimum permutations before checking for convergence.
+    #'   Convergence is judged based on the standard errors of the estimated SAGE values,
+    #'   which requires a sufficiently large number of samples (i.e., evaluated coalitions).
     #' @param check_interval (`integer(1)`: `1L`) Check convergence every N permutations.
     initialize = function(
       task,
@@ -69,8 +84,8 @@ SAGE = R6Class(
       n_permutations = 10L,
       batch_size = 5000L,
       n_samples = 100L,
-      early_stopping = TRUE,
-      se_threshold = 0.01,
+      early_stopping = FALSE,
+      se_threshold = 0.025,
       min_permutations = 10L,
       check_interval = 1L
     ) {
@@ -83,7 +98,7 @@ SAGE = R6Class(
         label = "Shapley Additive Global Importance"
       )
 
-      self$n_permutations = checkmate::assert_int(n_permutations, lower = 1L)
+      checkmate::assert_int(n_permutations, lower = 1L)
 
       # For classification tasks, require predict_type = "prob"
       if (self$task$task_type == "classif") {
@@ -100,9 +115,9 @@ SAGE = R6Class(
         n_permutations = paradox::p_int(lower = 1L, default = 10L),
         batch_size = paradox::p_int(lower = 1L, default = 5000L),
         n_samples = paradox::p_int(lower = 1L, default = 100L),
-        early_stopping = paradox::p_lgl(default = TRUE),
-        se_threshold = paradox::p_dbl(lower = 0, upper = 1, default = 0.01),
-        min_permutations = paradox::p_int(lower = 1L, default = 3L),
+        early_stopping = paradox::p_lgl(default = FALSE),
+        se_threshold = paradox::p_dbl(lower = 0, upper = 1, default = 0.025),
+        min_permutations = paradox::p_int(lower = 1L, default = 10L),
         check_interval = paradox::p_int(lower = 1L, default = 1L)
       )
       ps$values$n_permutations = n_permutations
@@ -119,10 +134,10 @@ SAGE = R6Class(
     #' Compute SAGE values.
     #' @param store_backends (`logical(1)`) Whether to store data backends.
     #' @param batch_size (`integer(1)`: `5000L`) Maximum number of observations to process in a single prediction call.
-    #' @param early_stopping (`logical(1)`: `TRUE`) Whether to check for convergence and stop early.
-    #' @param se_threshold (`numeric(1)`: `0.01`) Convergence threshold for relative standard error.
+    #' @param early_stopping (`logical(1)`: `FALSE`) Whether to check for convergence and stop early.
+    #' @param se_threshold (`numeric(1)`: `0.025`) Convergence threshold for relative standard error.
     #'   SE is normalized by the range of importance values (max - min) to make convergence
-    #'   detection scale-invariant. Default `0.01` means convergence when relative SE < 1%.
+    #'   detection scale-invariant. Default `0.025` means convergence when relative SE < 2.5%.
     #' @param min_permutations (`integer(1)`: `10L`) Minimum permutations before checking convergence.
     #' @param check_interval (`integer(1)`: `1L`) Check convergence every N permutations.
     compute = function(
@@ -136,24 +151,24 @@ SAGE = R6Class(
       # Reset convergence tracking
       self$convergence_history = NULL
       self$converged = FALSE
-      self$n_permutations_used = NULL
+      private$.budget_used = NULL
 
       # Resolve parameters using hierarchical resolution
       batch_size = resolve_param(batch_size, self$param_set$values$batch_size, 5000L)
       early_stopping = resolve_param(
         early_stopping,
         self$param_set$values$early_stopping,
-        TRUE
+        FALSE
       )
       se_threshold = resolve_param(
         se_threshold,
         self$param_set$values$se_threshold,
-        0.01
+        0.025
       )
       min_permutations = resolve_param(
         min_permutations,
         self$param_set$values$min_permutations,
-        3L
+        10L
       )
       check_interval = resolve_param(check_interval, self$param_set$values$check_interval, 1L)
 
@@ -176,7 +191,7 @@ SAGE = R6Class(
       first_result = private$.compute_sage_scores(
         learner = rr$learners[[iter_for_convergence]],
         test_dt = self$task$data(rows = rr$resampling$test_set(iter_for_convergence)),
-        n_permutations = self$n_permutations,
+        n_permutations = self$param_set$values$n_permutations,
         batch_size = batch_size,
         early_stopping = early_stopping,
         se_threshold = se_threshold,
@@ -188,7 +203,7 @@ SAGE = R6Class(
       # `convergence_data` exists even if early_stopping = FALSE
       self$convergence_history = first_result$convergence_data$convergence_history
       self$converged = first_result$convergence_data$converged
-      self$n_permutations_used = first_result$convergence_data$n_permutations_used
+      private$.budget_used = first_result$convergence_data$budget_used
 
       # If we have multiple resampling iterations, compute the rest without convergence tracking
       if (self$resampling$iters > 1) {
@@ -196,10 +211,9 @@ SAGE = R6Class(
           private$.compute_sage_scores(
             learner = rr$learners[[iter]],
             test_dt = self$task$data(rows = rr$resampling$test_set(iter)),
-            # n_permutations_used is either same as n_permutations (if early_stopping = FALSE)
-            # or its a smaller value if early_stopping = TRUE and it stopped early
-            # The fallback to self$n_permutations should not be needed
-            n_permutations = self$n_permutations_used %||% self$n_permutations,
+            # Reuse the budget the first iteration actually spent (smaller than
+            # n_permutations only if it stopped early).
+            n_permutations = private$.budget_used,
             batch_size = batch_size,
             # Only track convergence etc. for first iteration
             early_stopping = FALSE
@@ -220,6 +234,16 @@ SAGE = R6Class(
     },
 
     #' @description
+    #' Resets all stored fields populated by `$compute()`, including the convergence tracking
+    #' (`$convergence_history`, `$converged`, `$budget`).
+    reset = function() {
+      super$reset()
+      self$convergence_history = NULL
+      self$converged = FALSE
+      private$.budget_used = NULL
+    },
+
+    #' @description
     #' Plot convergence history of SAGE values.
     #' @param features (`character` | `NULL`) Features to plot. If NULL, plots all features.
     #' @return A [ggplot2][ggplot2::ggplot] object
@@ -237,9 +261,12 @@ SAGE = R6Class(
         plot_data = plot_data[feature %in% features]
       }
 
+      # Not named `budget`: the x aesthetic below refers to the history column of that name.
+      budget_row = self$budget
+
       p = ggplot2::ggplot(
         plot_data,
-        ggplot2::aes(x = n_permutations, y = importance, fill = feature, color = feature)
+        ggplot2::aes(x = budget, y = importance, fill = feature, color = feature)
       ) +
         ggplot2::geom_ribbon(
           ggplot2::aes(ymin = importance - se, ymax = importance + se),
@@ -251,12 +278,13 @@ SAGE = R6Class(
           title = "SAGE Value Convergence",
           subtitle = if (self$converged) {
             sprintf(
-              "Converged after %d permutations (saved %d)",
-              self$n_permutations_used,
-              self$n_permutations - self$n_permutations_used
+              "Converged after %g %s (saved %g)",
+              budget_row$used,
+              budget_row$unit,
+              budget_row$requested - budget_row$used
             )
           } else {
-            sprintf("Completed all %d permutations", self$n_permutations)
+            sprintf("Completed all %g %s", budget_row$used, budget_row$unit)
           },
           x = "Number of Permutations",
           y = "SAGE Value",
@@ -268,7 +296,7 @@ SAGE = R6Class(
       if (self$converged) {
         p = p +
           ggplot2::geom_vline(
-            xintercept = self$n_permutations_used,
+            xintercept = budget_row$used,
             linetype = "dashed",
             color = "red",
             alpha = 0.5
@@ -279,7 +307,74 @@ SAGE = R6Class(
     }
   ),
 
+  active = list(
+    #' @field budget ([`data.table`][data.table::data.table]) Read-only one-row summary of the sampling
+    #'   effort: the `estimator`, its `unit` of budget, the `requested` upper bound, the amount `used`
+    #'   (below the request only with early stopping), the resulting number of coalition evaluations
+    #'   `n_evals` (one empty-coalition baseline plus `n_features` per permutation), and whether the
+    #'   computation `converged`.
+    #'   `used` and `n_evals` are `NA` before `$compute()`.
+    #'   With multiple resampling iterations it describes the first iteration, whose budget the
+    #'   remaining ones reuse (see `early_stopping`).
+    budget = function(rhs) {
+      if (!missing(rhs)) {
+        cli::cli_abort("{.field $budget} is read-only; set the budget via {.code $param_set$values}.")
+      }
+      m = length(self$features)
+      used = private$.budget_used
+      data.table(
+        estimator = "permutation",
+        unit = "permutations",
+        requested = as.numeric(self$param_set$values$n_permutations),
+        used = as.numeric(used %||% NA_real_),
+        n_evals = if (is.null(used)) NA_real_ else sage_n_evals(m, used),
+        converged = self$converged
+      )
+    },
+
+    #' @field n_permutations_used Defunct.
+    #'   Use `$budget` instead, which reports the effort spent alongside its unit and the implied
+    #'   number of coalition evaluations.
+    n_permutations_used = function(rhs) {
+      cli::cli_abort(c(
+        "The {.field n_permutations_used} field is defunct.",
+        "i" = "Read the effort spent via {.code $budget} instead, which also reports its unit."
+      ))
+    },
+
+    #' @field n_permutations (`integer(1)`) Deprecated.
+    #'   The permutation budget lives in the param_set; use `$param_set$values$n_permutations` instead.
+    #'   This alias is kept for backward compatibility with the field of the same name in
+    #'   earlier releases and warns on access.
+    n_permutations = function(rhs) {
+      if (missing(rhs)) {
+        cli::cli_warn(
+          c(
+            "The {.field n_permutations} field is deprecated.",
+            "i" = "Read it via {.code $param_set$values$n_permutations} instead."
+          ),
+          .frequency = "once",
+          .frequency_id = "xplainfi_sage_n_permutations_get"
+        )
+        return(self$param_set$values$n_permutations)
+      }
+      cli::cli_warn(
+        c(
+          "The {.field n_permutations} field is deprecated.",
+          "i" = "Set it via {.code $param_set$values$n_permutations} instead."
+        ),
+        .frequency = "once",
+        .frequency_id = "xplainfi_sage_n_permutations_set"
+      )
+      self$param_set$values$n_permutations = checkmate::assert_int(rhs, lower = 1L)
+    }
+  ),
+
   private = list(
+    # Sampling effort spent by the first resampling iteration, in permutations.
+    # Surfaced via $budget; also the budget the remaining iterations reuse after early stopping.
+    .budget_used = NULL,
+
     # This function computes the SAGE values for a single resampling iteration.
     # It iterates through permutations of features, evaluates coalitions, and calculates marginal contributions.
     .compute_sage_scores = function(
@@ -288,7 +383,7 @@ SAGE = R6Class(
       n_permutations,
       batch_size = NULL,
       early_stopping = FALSE,
-      se_threshold = 0.01,
+      se_threshold = 0.025,
       min_permutations = 10L,
       check_interval = 1L
     ) {
@@ -396,12 +491,18 @@ SAGE = R6Class(
         # Calculate the current average SAGE values and standard errors based on completed permutations.
         current_avg = sage_values / n_completed
 
-        # Calculate running variance and standard errors for each feature
-        # Variance = E[X^2] - E[X]^2, SE = sqrt(Var / n)
-        current_variance = (sage_values_sq / n_completed) - (current_avg^2)
-        # Ensure variance is non-negative (numerical precision issues)
-        current_variance[current_variance < 0] = 0
-        current_se = sqrt(current_variance / n_completed)
+        # Sample variance (Bessel-corrected) of the per-permutation marginal
+        # contributions, SE = sqrt(Var / n). A single permutation carries no
+        # variance information, so the SE is NA rather than a misleading 0.
+        if (n_completed > 1L) {
+          current_variance = (sage_values_sq - n_completed * current_avg^2) / (n_completed - 1L)
+          # Ensure variance is non-negative (numerical precision issues)
+          current_variance[current_variance < 0] = 0
+          current_se = sqrt(current_variance / n_completed)
+        } else {
+          current_se = rep(NA_real_, length(current_avg))
+          names(current_se) = names(current_avg)
+        }
 
         if (xplain_opt("debug")) {
           cli::cli_alert_info("SAGE values after {.val {n_completed}} permutations")
@@ -415,48 +516,26 @@ SAGE = R6Class(
         # Store the current average SAGE values and standard errors in the convergence history.
         # Used for plotting, early stopping, and uncertainty quantification.
         checkpoint_history = data.table(
-          n_permutations = n_completed,
+          budget = n_completed,
+          n_evals = sage_n_evals(length(self$features), n_completed),
           feature = names(current_avg),
           importance = as.numeric(current_avg),
           se = as.numeric(current_se)
         )
         convergence_history[[length(convergence_history) + 1]] = checkpoint_history
 
-        # Check for convergence if early stopping is enabled and enough permutations have been processed.
-        if (early_stopping && n_completed >= min_permutations && length(convergence_history) > 1) {
-          # Get SAGE values from the current checkpoint.
-          curr_checkpoint = convergence_history[[length(convergence_history)]]
-
-          # Ensure features are in the same order for comparison.
-          curr_checkpoint_ordered = copy(curr_checkpoint)[order(feature)]
-          curr_importance_values = curr_checkpoint_ordered$importance
-          curr_se_values = curr_checkpoint_ordered$se
-
-          # Calculate range of importance values across all features (matching fippy)
-          importance_range = max(curr_importance_values, na.rm = TRUE) -
-            min(curr_importance_values, na.rm = TRUE)
-
-          # Normalize SE by range to get relative SE (matching fippy's formula)
-          # fippy: ratio = SE / range, convergence if max(ratio) < threshold
-          # https://github.com/gcskoenig/fippy/blob/a7a37aa5511f7074ead3289c89b1ae80036982cb/src/fippy/explainers/utils.py#L40-L42
-          if (importance_range > 0 && is.finite(importance_range)) {
-            relative_se_values = curr_se_values / importance_range
-            max_relative_se = max(relative_se_values, na.rm = TRUE)
-          } else {
-            # If range is 0 or invalid, use absolute SE (fallback)
-            max_relative_se = max(curr_se_values, na.rm = TRUE)
-          }
-
-          # Check convergence: max relative SE below threshold
-          converged = is.finite(max_relative_se) && max_relative_se < se_threshold
-          convergence_msg = c(
-            "v" = "SAGE converged after {.val {n_completed}} permutations",
-            "i" = "Maximum relative SE: {.val {round(max_relative_se, 4)}} (threshold: {.val {se_threshold}})",
-            "i" = "Saved {.val {n_permutations - n_completed}} permutations"
-          )
+        # Check for convergence if early stopping is enabled and enough permutations have
+        # been processed (at least 2, since a single permutation has no SE).
+        if (early_stopping && n_completed >= max(min_permutations, 2L)) {
+          ratio = sage_convergence_ratio(current_avg, current_se)
+          converged = !is.na(ratio) && ratio < se_threshold
 
           if (xplain_opt("verbose") && converged) {
-            cli::cli_inform(convergence_msg)
+            cli::cli_inform(c(
+              "v" = "SAGE converged after {.val {n_completed}} permutations",
+              "i" = "Maximum relative SE: {.val {round(ratio, 4)}} (threshold: {.val {se_threshold}})",
+              "i" = "Saved {.val {n_permutations - n_completed}} permutations"
+            ))
           }
         }
       }
@@ -464,6 +543,15 @@ SAGE = R6Class(
       # Close the progress bar.
       if (xplain_opt("progress")) {
         cli::cli_progress_done()
+      }
+
+      # An exhausted budget under early stopping is a different outcome from a planned
+      # run and must not pass silently.
+      if (early_stopping && !converged) {
+        cli::cli_warn(c(
+          "SAGE did not converge within {.val {n_permutations}} permutations.",
+          "i" = "Raise {.arg n_permutations} to allow more sampling, or relax {.arg se_threshold}."
+        ))
       }
 
       # Calculate the final average SAGE values based on all completed permutations.
@@ -482,7 +570,7 @@ SAGE = R6Class(
             NULL
           },
           converged = converged,
-          n_permutations_used = n_completed
+          budget_used = n_completed
         )
       )
     },

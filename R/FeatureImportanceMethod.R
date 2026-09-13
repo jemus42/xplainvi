@@ -370,10 +370,6 @@ FeatureImportanceMethod = R6Class(
       private$.scores = NULL
       private$.obs_losses = NULL
       self$predictions = NULL
-      # SAGE-specific fields (only reset if they exist)
-      if ("n_permutations_used" %in% names(self)) {
-        self$n_permutations_used = NULL
-      }
     },
 
     #' @description

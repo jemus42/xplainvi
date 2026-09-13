@@ -231,3 +231,10 @@ test_that("sage_marginal_contributions accumulates closed-form, offset-aware", {
   expect_equal(r2$sv, r$sv)
   expect_equal(r2$sv_sq, r$sv_sq)
 })
+
+test_that("sage_convergence_ratio normalizes by spread and is NA without SEs", {
+  expect_equal(sage_convergence_ratio(c(a = 0, b = 2, c = 1), c(0.1, 0.4, 0.2)), 0.2)
+  # degenerate spread falls back to the absolute SE
+  expect_equal(sage_convergence_ratio(c(1, 1), c(0.3, 0.1)), 0.3)
+  expect_identical(sage_convergence_ratio(c(0, 1), c(NA_real_, 0.1)), NA_real_)
+})

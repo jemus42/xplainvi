@@ -1,5 +1,16 @@
 # xplainfi (development version)
 
+## Behavior changes
+
+- `SAGE` methods: `se_threshold` now defaults to `0.025` (was `0.01`), matching the convergence criterion of the Python `sage` package, and `early_stopping` defaults to `FALSE` in the base class as it already did in `MarginalSAGE` and `ConditionalSAGE`. `min_permutations` consistently defaults to `10L` (the parameter set and `$compute()` fallback previously used `3L`).
+- `SAGE` methods: with `early_stopping = TRUE`, exhausting `n_permutations` without meeting the criterion now warns instead of passing silently.
+- `SAGE$budget` is a new read-only accessor reporting the estimator, its budget unit, the requested and actually used effort, the resulting number of coalition evaluations (`n_evals`), and whether the run converged.
+  - It replaces the `$n_permutations_used` field, which is defunct (accessing it is an error).
+  - Accordingly, `$convergence_history` has `budget` and `n_evals` columns in place of `n_permutations`.
+  - The standard errors in `$convergence_history` are now Bessel-corrected and `NA` after a single permutation (previously `0`).
+  - `SAGE$reset()` now also clears `$convergence_history`, `$converged`, and `$budget`, which previously survived a reset.
+- `SAGE$n_permutations` is deprecated in favor of `$param_set$values$n_permutations`; it remains readable and writable as an alias but warns once per session on access.
+
 ## Bug fixes
 
 - `FeatureImportanceMethod$importance(standardize = TRUE)` no longer permanently modifies the stored scores of SAGE methods by reference; repeated calls previously compounded the standardization.

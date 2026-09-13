@@ -26,6 +26,18 @@ These SEs quantify the Monte Carlo sampling error for a fixed trained model
 and are only valid for inference about the importance of features for that
 specific model. They do not capture broader uncertainty from model variability
 across different train/test splits or resampling iterations.
+
+\strong{Convergence and budget}: With \code{early_stopping = TRUE}, sampling stops once the largest SE,
+relative to the spread of the SAGE values (\code{max(se) / (max(phi) - min(phi))}), falls below
+\code{se_threshold}.
+This is the criterion of the reference Python \code{sage} package.
+The budget argument (\code{n_permutations}) then acts as an upper bound rather than a planned cost:
+exhausting it without meeting the criterion returns the values with a warning.
+\verb{$budget} reports what was actually spent and whether the criterion was met, and
+\verb{$plot_convergence()} shows the trajectory that led there.
+Under resampling, only the first iteration runs the criterion and the remaining iterations
+reuse its budget, which keeps them comparable and avoids re-deriving the standard errors in
+every iteration.
 }
 \references{
 Covert I, Lundberg S, Lee S (2020).
@@ -42,13 +54,34 @@ In \emph{Advances in Neural Information Processing Systems}, volume 33, 17212--1
 \section{Public fields}{
   \if{html}{\out{<div class="r6-fields">}}
   \describe{
-    \item{\code{n_permutations}}{(\code{integer(1)}) Number of permutations to sample.}
+    \item{\code{convergence_history}}{(\code{\link[data.table:data.table]{data.table}}) History of SAGE values during computation.
+Columns \code{budget} (sampling effort in the estimator's own units, here permutations) and \code{n_evals}
+(the corresponding number of evaluated coalitions) index the checkpoints; see \verb{$budget}.}
 
-    \item{\code{convergence_history}}{(\code{\link[data.table:data.table]{data.table}}) History of SAGE values during computation.}
+    \item{\code{converged}}{(\code{logical(1)}) Whether the convergence criterion was met (\code{early_stopping = TRUE}).}
+  }
+  \if{html}{\out{</div>}}
+}
+\section{Active bindings}{
+  \if{html}{\out{<div class="r6-active-bindings">}}
+  \describe{
+    \item{\code{budget}}{(\code{\link[data.table:data.table]{data.table}}) Read-only one-row summary of the sampling
+effort: the \code{estimator}, its \code{unit} of budget, the \code{requested} upper bound, the amount \code{used}
+(below the request only with early stopping), the resulting number of coalition evaluations
+\code{n_evals} (one empty-coalition baseline plus \code{n_features} per permutation), and whether the
+computation \code{converged}.
+\code{used} and \code{n_evals} are \code{NA} before \verb{$compute()}.
+With multiple resampling iterations it describes the first iteration, whose budget the
+remaining ones reuse (see \code{early_stopping}).}
 
-    \item{\code{converged}}{(\code{logical(1)}) Whether convergence was detected.}
+    \item{\code{n_permutations_used}}{Defunct.
+Use \verb{$budget} instead, which reports the effort spent alongside its unit and the implied
+number of coalition evaluations.}
 
-    \item{\code{n_permutations_used}}{(\code{integer(1)}) Actual number of permutations used.}
+    \item{\code{n_permutations}}{(\code{integer(1)}) Deprecated.
+The permutation budget lives in the param_set; use \verb{$param_set$values$n_permutations} instead.
+This alias is kept for backward compatibility with the field of the same name in
+earlier releases and warns on access.}
   }
   \if{html}{\out{</div>}}
 }
@@ -57,6 +90,7 @@ In \emph{Advances in Neural Information Processing Systems}, volume 33, 17212--1
   \itemize{
     \item \href{#method-SAGE-initialize}{\code{SAGE$new()}}
     \item \href{#method-SAGE-compute}{\code{SAGE$compute()}}
+    \item \href{#method-SAGE-reset}{\code{SAGE$reset()}}
     \item \href{#method-SAGE-plot_convergence}{\code{SAGE$plot_convergence()}}
     \item \href{#method-SAGE-clone}{\code{SAGE$clone()}}
   }
@@ -66,7 +100,6 @@ In \emph{Advances in Neural Information Processing Systems}, volume 33, 17212--1
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="importance"><a href='../../xplainfi/html/FeatureImportanceMethod.html#method-FeatureImportanceMethod-importance'><code>FeatureImportanceMethod$importance()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="obs_loss"><a href='../../xplainfi/html/FeatureImportanceMethod.html#method-FeatureImportanceMethod-obs_loss'><code>FeatureImportanceMethod$obs_loss()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="print"><a href='../../xplainfi/html/FeatureImportanceMethod.html#method-FeatureImportanceMethod-print'><code>FeatureImportanceMethod$print()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="reset"><a href='../../xplainfi/html/FeatureImportanceMethod.html#method-FeatureImportanceMethod-reset'><code>FeatureImportanceMethod$reset()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="xplainfi" data-topic="FeatureImportanceMethod" data-id="scores"><a href='../../xplainfi/html/FeatureImportanceMethod.html#method-FeatureImportanceMethod-scores'><code>FeatureImportanceMethod$scores()</code></a></span></li>
 </ul>
 </details>}}
@@ -86,8 +119,8 @@ In \emph{Advances in Neural Information Processing Systems}, volume 33, 17212--1
   n_permutations = 10L,
   batch_size = 5000L,
   n_samples = 100L,
-  early_stopping = TRUE,
-  se_threshold = 0.01,
+  early_stopping = FALSE,
+  se_threshold = 0.025,
   min_permutations = 10L,
   check_interval = 1L
 )}
@@ -103,13 +136,18 @@ The total number of evaluated coalitions is \code{1 (empty) + n_permutations * n
       \item{\code{n_samples}}{(\code{integer(1)}: \code{100L}) Number of samples to use for marginalizing out-of-coalition features.
 For \link{MarginalSAGE}, this is the number of marginal data samples ("background data" in other implementations).
 For \link{ConditionalSAGE}, this is the number of conditional samples per test instance retrieved from \code{sampler}.}
-      \item{\code{early_stopping}}{(\code{logical(1)}: \code{TRUE}) Whether to enable early stopping based on convergence detection.}
-      \item{\code{se_threshold}}{(\code{numeric(1)}: \code{0.01}) Convergence threshold for relative standard error.
+      \item{\code{early_stopping}}{(\code{logical(1)}: \code{FALSE}) Whether to stop once the convergence criterion is met,
+rather than spending the full budget.
+The budget then acts as an upper bound: if the criterion is not met within it, the values are
+returned with a warning and \verb{$budget} reports \code{converged = FALSE}.}
+      \item{\code{se_threshold}}{(\code{numeric(1)}: \code{0.025}) Convergence threshold for relative standard error.
 Convergence is detected when the maximum relative SE across all features falls below this threshold.
 Relative SE is calculated as SE divided by the range of importance values (max - min),
 making it scale-invariant across different loss metrics.
-Default of \code{0.01} means convergence when relative SE is below 1\% of the importance range.}
-      \item{\code{min_permutations}}{(\code{integer(1)}: \code{10L}) Minimum permutations before checking for convergence. Convergence is judged based on the standard errors of the estimated SAGE values,
+The default of \code{0.025} (convergence once the relative SE is below 2.5\% of the importance range) is
+the default of the Python \code{sage} package; the examples in Covert et al. (2020) use \code{0.01} to \code{0.02}.}
+      \item{\code{min_permutations}}{(\code{integer(1)}: \code{10L}) Minimum permutations before checking for convergence.
+Convergence is judged based on the standard errors of the estimated SAGE values,
 which requires a sufficiently large number of samples (i.e., evaluated coalitions).}
       \item{\code{check_interval}}{(\code{integer(1)}: \code{1L}) Check convergence every N permutations.}
     }
@@ -139,13 +177,26 @@ which requires a sufficiently large number of samples (i.e., evaluated coalition
     \describe{
       \item{\code{store_backends}}{(\code{logical(1)}) Whether to store data backends.}
       \item{\code{batch_size}}{(\code{integer(1)}: \code{5000L}) Maximum number of observations to process in a single prediction call.}
-      \item{\code{early_stopping}}{(\code{logical(1)}: \code{TRUE}) Whether to check for convergence and stop early.}
-      \item{\code{se_threshold}}{(\code{numeric(1)}: \code{0.01}) Convergence threshold for relative standard error.
+      \item{\code{early_stopping}}{(\code{logical(1)}: \code{FALSE}) Whether to check for convergence and stop early.}
+      \item{\code{se_threshold}}{(\code{numeric(1)}: \code{0.025}) Convergence threshold for relative standard error.
 SE is normalized by the range of importance values (max - min) to make convergence
-detection scale-invariant. Default \code{0.01} means convergence when relative SE < 1\%.}
+detection scale-invariant. Default \code{0.025} means convergence when relative SE < 2.5\%.}
       \item{\code{min_permutations}}{(\code{integer(1)}: \code{10L}) Minimum permutations before checking convergence.}
       \item{\code{check_interval}}{(\code{integer(1)}: \code{1L}) Check convergence every N permutations.}
     }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-SAGE-reset"></a>}}
+\if{latex}{\out{\hypertarget{method-SAGE-reset}{}}}
+\subsection{\code{SAGE$reset()}}{
+  Resets all stored fields populated by \verb{$compute()}, including the convergence tracking
+(\verb{$convergence_history}, \verb{$converged}, \verb{$budget}).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SAGE$reset()}
     \if{html}{\out{</div>}}
   }
 }

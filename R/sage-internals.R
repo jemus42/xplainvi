@@ -187,3 +187,24 @@ sage_marginal_contributions = function(perm_sublist, losses, baseline, feature_n
 
   list(sv = sv, sv_sq = sv_sq)
 }
+
+# Number of evaluated coalitions for a permutation budget: one empty-coalition baseline
+# plus m growing prefixes per permutation. The currency in which sampling estimators are
+# comparable, unlike their own budget units.
+sage_n_evals = function(m, n_permutations) {
+  1 + n_permutations * m
+}
+
+# Convergence criterion of the reference Python `sage` package (`detect_convergence`):
+# largest SE relative to the spread of the SAGE values. NA (never converged) if any SE is
+# missing, e.g. before the second permutation.
+sage_convergence_ratio = function(importance, se) {
+  if (anyNA(importance) || anyNA(se)) {
+    return(NA_real_)
+  }
+  spread = max(importance) - min(importance)
+  # A degenerate spread (single feature, or all features equal) leaves nothing to normalize
+  # by, so the absolute standard error is used instead.
+  ratio = if (spread > 0 && is.finite(spread)) max(se) / spread else max(se)
+  if (is.finite(ratio)) ratio else NA_real_
+}

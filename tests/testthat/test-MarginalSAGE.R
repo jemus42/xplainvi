@@ -192,25 +192,25 @@ test_that("MarginalSAGE SE tracking in convergence_history", {
     n_samples = 20L
   )
 
-  # Compute with early stopping to get convergence history
-  sage$compute(early_stopping = TRUE, se_threshold = 0.05, check_interval = 2L)
+  # The convergence history is tracked regardless of early stopping
+  sage$compute(check_interval = 2L)
 
   # Check that convergence_history exists and has SE column
   expect_false(is.null(sage$convergence_history))
   expect_contains(colnames(sage$convergence_history), "se")
 
   # Check structure of convergence_history
-  expected_cols = c("n_permutations", "feature", "importance", "se")
+  expected_cols = c("budget", "n_evals", "feature", "importance", "se")
   expect_setequal(colnames(sage$convergence_history), expected_cols)
 
   # SE values should be non-negative and finite
   se_values = sage$convergence_history$se
-  checkmate::expect_numeric(se_values, lower = 0, finite = TRUE)
+  checkmate::expect_numeric(se_values[sage$convergence_history$budget > 1], lower = 0, finite = TRUE)
 
   # For each feature, SE should be in a reasonable range
   for (feat in unique(sage$convergence_history$feature)) {
     feat_data = sage$convergence_history[feature == feat]
-    feat_data = feat_data[order(n_permutations)]
+    feat_data = feat_data[order(budget)]
 
     if (nrow(feat_data) > 1) {
       # Just check that SE values are in a reasonable range and not exploding
@@ -251,31 +251,36 @@ test_that("MarginalSAGE SE-based convergence detection", {
 
   # Should converge early because SE will be well below 100.0
   expect_true(sage$converged)
-  expect_lte(sage$n_permutations_used, 10L)
+  expect_lte(sage$budget$used, 10L)
 
   # Reset for next test
   sage$reset()
 
   # Test with very strict SE threshold (should not converge)
-  sage$compute(
-    early_stopping = TRUE,
-    se_threshold = 0.001,
-    min_permutations = 5L,
-    check_interval = 1L
+  expect_warning(
+    sage$compute(
+      early_stopping = TRUE,
+      se_threshold = 0.001,
+      min_permutations = 5L,
+      check_interval = 1L
+    ),
+    "did not converge"
   )
 
   # With very strict SE threshold, should not converge early
   expect_false(sage$converged)
+  expect_equal(sage$budget$used, 10)
 
   # Test with moderate SE threshold
   sage$reset()
 
-  sage$compute(
+  # The history is populated whether or not the criterion is met.
+  suppressWarnings(sage$compute(
     early_stopping = TRUE,
     se_threshold = 0.1,
     min_permutations = 5L,
     check_interval = 1L
-  )
+  ))
 
   # Should have convergence history with SE tracking regardless of convergence
   expect_false(is.null(sage$convergence_history))
@@ -391,4 +396,50 @@ test_that("standardize = TRUE does not mutate stored scores", {
   sage$importance(standardize = TRUE)
   sage$importance(standardize = TRUE)
   expect_equal(sage$scores(), before)
+})
+
+test_that("MarginalSAGE budget accessor and reset", {
+  set.seed(1412)
+  task = sim_dgp_independent(n = 100)
+  sage = MarginalSAGE$new(task, lrn("regr.rpart"), n_permutations = 4L, n_samples = 10L)
+
+  before = sage$budget
+  checkmate::expect_data_table(before, nrows = 1L)
+  expect_equal(before$estimator, "permutation")
+  expect_equal(before$requested, 4)
+  expect_identical(before$used, NA_real_)
+  expect_identical(before$n_evals, NA_real_)
+  expect_error(sage$budget <- 1, "read-only")
+
+  sage$compute()
+  after = sage$budget
+  expect_equal(after$used, 4)
+  # one empty-coalition baseline plus n_features per permutation
+  expect_equal(after$n_evals, 1 + 4 * length(sage$features))
+  expect_false(after$converged)
+  expect_equal(sage$convergence_history[, unique(n_evals)], 1 + (1:4) * length(sage$features))
+  # a single permutation has no variance information
+  expect_true(all(is.na(sage$convergence_history[budget == 1, se])))
+  expect_false(anyNA(sage$convergence_history[budget > 1, se]))
+
+  sage$reset()
+  expect_null(sage$convergence_history)
+  expect_false(sage$converged)
+  expect_identical(sage$budget$used, NA_real_)
+})
+
+test_that("MarginalSAGE budget lives in the param_set; old fields are deprecated or defunct", {
+  task = sim_dgp_independent(n = 50)
+  sage = MarginalSAGE$new(task, lrn("regr.rpart"), n_permutations = 3L, n_samples = 10L)
+
+  expect_equal(sage$param_set$values$n_permutations, 3L)
+  expect_error(sage$n_permutations_used, "defunct")
+
+  rlang::reset_warning_verbosity("xplainfi_sage_n_permutations_get")
+  rlang::reset_warning_verbosity("xplainfi_sage_n_permutations_set")
+  expect_warning(val <- sage$n_permutations, "deprecated")
+  expect_equal(val, 3L)
+  expect_warning(sage$n_permutations <- 5L, "deprecated")
+  expect_equal(sage$param_set$values$n_permutations, 5L)
+  expect_equal(sage$budget$requested, 5)
 })
