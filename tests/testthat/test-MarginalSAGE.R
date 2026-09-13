@@ -435,8 +435,6 @@ test_that("MarginalSAGE budget lives in the param_set; old fields are deprecated
   expect_equal(sage$param_set$values$n_permutations, 3L)
   expect_error(sage$n_permutations_used, "defunct")
 
-  rlang::reset_warning_verbosity("xplainfi_sage_n_permutations_get")
-  rlang::reset_warning_verbosity("xplainfi_sage_n_permutations_set")
   expect_warning(val <- sage$n_permutations, "deprecated")
   expect_equal(val, 3L)
   expect_warning(sage$n_permutations <- 5L, "deprecated")

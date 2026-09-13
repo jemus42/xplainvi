@@ -461,27 +461,19 @@ SAGE = R6Class(
     #' @field n_permutations (`integer(1)`) Deprecated.
     #'   The permutation budget lives in the param_set; use `$param_set$values$n_permutations` instead.
     #'   This alias is kept for backward compatibility with the field of the same name in
-    #'   earlier releases and warns on access.
+    #'   earlier releases and warns on every access.
     n_permutations = function(rhs) {
       if (missing(rhs)) {
-        cli::cli_warn(
-          c(
-            "The {.field n_permutations} field is deprecated.",
-            "i" = "Read it via {.code $param_set$values$n_permutations} instead."
-          ),
-          .frequency = "once",
-          .frequency_id = "xplainfi_sage_n_permutations_get"
-        )
+        cli::cli_warn(c(
+          "The {.field n_permutations} field is deprecated.",
+          "i" = "Read it via {.code $param_set$values$n_permutations} instead."
+        ))
         return(self$param_set$values$n_permutations)
       }
-      cli::cli_warn(
-        c(
-          "The {.field n_permutations} field is deprecated.",
-          "i" = "Set it via {.code $param_set$values$n_permutations} instead."
-        ),
-        .frequency = "once",
-        .frequency_id = "xplainfi_sage_n_permutations_set"
-      )
+      cli::cli_warn(c(
+        "The {.field n_permutations} field is deprecated.",
+        "i" = "Set it via {.code $param_set$values$n_permutations} instead."
+      ))
       if (identical(self$param_set$values$estimator, "exact")) {
         cli::cli_abort("{.arg n_permutations} is only valid for {.code estimator = \"permutation\"}.")
       }

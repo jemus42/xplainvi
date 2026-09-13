@@ -16,7 +16,7 @@
   - Accordingly, `$convergence_history` has `budget` and `n_evals` columns in place of `n_permutations`.
   - The standard errors in `$convergence_history` are now Bessel-corrected and `NA` after a single permutation (previously `0`).
   - `SAGE$reset()` now also clears `$convergence_history`, `$converged`, and `$budget`, which previously survived a reset.
-- `SAGE$n_permutations` is deprecated in favor of `$param_set$values$n_permutations`; it remains readable and writable as an alias but warns once per session on access.
+- `SAGE$n_permutations` is deprecated in favor of `$param_set$values$n_permutations`; it remains readable and writable as an alias but warns on access.
 
 ## Bug fixes
 

@@ -91,7 +91,7 @@ number of coalition evaluations.}
     \item{\code{n_permutations}}{(\code{integer(1)}) Deprecated.
 The permutation budget lives in the param_set; use \verb{$param_set$values$n_permutations} instead.
 This alias is kept for backward compatibility with the field of the same name in
-earlier releases and warns on access.}
+earlier releases and warns on every access.}
   }
   \if{html}{\out{</div>}}
 }
