@@ -95,3 +95,39 @@ expect_method_output = function(method) {
     expect_obs_loss_dt(method$obs_loss(), features = features)
   }
 }
+
+# Reference Shapley values of the SAGE value function via the textbook formula,
+#   phi_i = sum_{S not containing i} |S|! (p - |S| - 1)! / p! * (v(S + i) - v(S)),
+# with coalitions as sorted feature-name vectors. Deliberately plain so it can be
+# checked by reading; the estimator under test uses bitmasks instead.
+brute_force_shapley = function(sage, task) {
+  feats = sage$features
+  p = length(feats)
+  subsets = unlist(lapply(0:p, function(k) combn(feats, k, simplify = FALSE)), recursive = FALSE)
+
+  # Evaluate every coalition once with the same value function the estimator uses;
+  # v(S) = loss(empty) - loss(S), keyed by the sorted feature names.
+  rr = sage$resample_result
+  losses = sage$.__enclos_env__$private$.evaluate_coalitions_batch(
+    rr$learners[[1]],
+    task$data(rows = rr$resampling$test_set(1)),
+    subsets,
+    NULL
+  )
+  key = function(S) if (length(S) == 0L) "<empty>" else paste(sort(S), collapse = ",")
+  loss_of = setNames(losses, vapply(subsets, key, character(1)))
+  v = function(S) loss_of[["<empty>"]] - loss_of[[key(S)]]
+
+  phi = setNames(numeric(p), feats)
+  for (i in feats) {
+    for (S in subsets) {
+      if (i %in% S) {
+        next
+      }
+      k = length(S)
+      weight = factorial(k) * factorial(p - k - 1) / factorial(p)
+      phi[i] = phi[i] + weight * (v(c(S, i)) - v(S))
+    }
+  }
+  phi
+}
