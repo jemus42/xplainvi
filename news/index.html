@@ -61,9 +61,16 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="xplainfi-development-version">xplainfi (development version)<a class="anchor" aria-label="anchor" href="#xplainfi-development-version"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h3>
+<ul><li>
+<code>FeatureImportanceMethod$importance(standardize = TRUE)</code> no longer permanently modifies the stored scores of SAGE methods by reference; repeated calls previously compounded the standardization.</li>
+<li>
+<code>SAGE</code> methods now negate the scores of measures that are maximized (<code>measure$minimize = FALSE</code>, e.g. <code>classif.acc</code>), so positive SAGE values mean “improves performance” for every measure; previously such measures yielded sign-flipped values.</li>
+</ul></div>
 </div>
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="1.2.0" id="xplainfi-120">xplainfi 1.2.0<a class="anchor" aria-label="anchor" href="#xplainfi-120"></a></h2>
+<h2 class="pkg-version" data-toc-text="1.2.0" id="xplainfi-120">xplainfi 1.2.0<a class="anchor" aria-label="anchor" href="#xplainfi-120"></a></h2><p class="text-muted">CRAN release: 2026-07-24</p>
 <div class="section level3">
 <h3 id="behavior-changes-1-2-0">Behavior changes<a class="anchor" aria-label="anchor" href="#behavior-changes-1-2-0"></a></h3>
 <ul><li>

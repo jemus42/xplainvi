@@ -14,6 +14,12 @@ performance among all features. Unlike perturbation-based methods, SAGE
 marginalizes features by integrating over their distribution. This is
 approximated by averaging predictions over a reference dataset.
 
+SAGE values are reductions in the measure's score relative to the empty
+coalition, `score(empty) - score(S)`, so that positive values mean the
+feature improves performance. For measures that are maximized
+(`measure$minimize = FALSE`, e.g. `classif.acc`) the scores are negated
+internally, so the sign convention is the same for all measures.
+
 **Standard Error Calculation**: The standard errors (SE) reported in
 `$convergence_history` reflect the uncertainty in Shapley value
 estimation across different random permutations within a single

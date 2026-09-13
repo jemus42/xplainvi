@@ -77,6 +77,10 @@ This is an abstract class - use <a href="MarginalSAGE.html">MarginalSAGE</a> or 
 performance among all features. Unlike perturbation-based methods,
 SAGE marginalizes features by integrating over their distribution.
 This is approximated by averaging predictions over a reference dataset.</p>
+<p>SAGE values are reductions in the measure's score relative to the empty coalition,
+<code>score(empty) - score(S)</code>, so that positive values mean the feature improves performance.
+For measures that are maximized (<code>measure$minimize = FALSE</code>, e.g. <code>classif.acc</code>) the scores are
+negated internally, so the sign convention is the same for all measures.</p>
 <p><strong>Standard Error Calculation</strong>: The standard errors (SE) reported in
 <code>$convergence_history</code> reflect the uncertainty in Shapley value estimation
 across different random permutations within a single resampling iteration.

@@ -2,7 +2,19 @@
 
 ## xplainfi (development version)
 
+### Bug fixes
+
+- `FeatureImportanceMethod$importance(standardize = TRUE)` no longer
+  permanently modifies the stored scores of SAGE methods by reference;
+  repeated calls previously compounded the standardization.
+- `SAGE` methods now negate the scores of measures that are maximized
+  (`measure$minimize = FALSE`, e.g. `classif.acc`), so positive SAGE
+  values mean “improves performance” for every measure; previously such
+  measures yielded sign-flipped values.
+
 ## xplainfi 1.2.0
+
+CRAN release: 2026-07-24
 
 ### Behavior changes
 
