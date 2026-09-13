@@ -62,6 +62,18 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="xplainfi-development-version">xplainfi (development version)<a class="anchor" aria-label="anchor" href="#xplainfi-development-version"></a></h2>
 <div class="section level3">
+<h3 id="new-features-development-version">New features<a class="anchor" aria-label="anchor" href="#new-features-development-version"></a></h3>
+<ul><li>
+<code>MarginalSAGE</code> and <code>ConditionalSAGE</code> gain an <code>estimator</code> argument selecting the Shapley-value estimator (<a href="https://github.com/mlr-org/xplainfi/issues/70" class="external-link">#70</a>).
+<ul><li>
+<code>"permutation"</code> (the default) is the previous behavior, controlled by <code>n_permutations</code>.</li>
+<li>
+<code>"exact"</code> enumerates all coalitions on small feature sets (capped by the new <code>max_features</code> argument) and computes SAGE values without coalition-sampling error, useful as a ground-truth reference for the sampling estimator. It takes no budget; setting <code>n_permutations</code> with it is an error, and <code>$budget</code> reports <code>converged = NA</code>.</li>
+<li>
+<code>$compute()</code> points out in a message (if <code>xplain_opt("verbose")</code>) when <code>n_permutations</code> costs at least as many coalition evaluations as exact enumeration.</li>
+</ul></li>
+</ul></div>
+<div class="section level3">
 <h3 id="behavior-changes-development-version">Behavior changes<a class="anchor" aria-label="anchor" href="#behavior-changes-development-version"></a></h3>
 <ul><li>
 <code>SAGE</code> methods: <code>se_threshold</code> now defaults to <code>0.025</code> (was <code>0.01</code>), matching the convergence criterion of the Python <code>sage</code> package, and <code>early_stopping</code> defaults to <code>FALSE</code> in the base class as it already did in <code>MarginalSAGE</code> and <code>ConditionalSAGE</code>. <code>min_permutations</code> consistently defaults to <code>10L</code> (the parameter set and <code>$compute()</code> fallback previously used <code>3L</code>).</li>
@@ -76,7 +88,7 @@
 <code>SAGE$reset()</code> now also clears <code>$convergence_history</code>, <code>$converged</code>, and <code>$budget</code>, which previously survived a reset.</li>
 </ul></li>
 <li>
-<code>SAGE$n_permutations</code> is deprecated in favor of <code>$param_set$values$n_permutations</code>; it remains readable and writable as an alias but warns once per session on access.</li>
+<code>SAGE$n_permutations</code> is deprecated in favor of <code>$param_set$values$n_permutations</code>; it remains readable and writable as an alias but warns on access.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h3>

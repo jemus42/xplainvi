@@ -29,6 +29,17 @@ importance of features for that specific model. They do not capture
 broader uncertainty from model variability across different train/test
 splits or resampling iterations.
 
+**Estimators**: `estimator = "permutation"` (the default) is the
+permutation-sampling estimator of Covert et al. (2020), budgeted by
+`n_permutations`. `estimator = "exact"` enumerates all `2^n_features`
+coalitions and computes the Shapley values in closed form, so it has no
+coalition-sampling error and serves as a ground-truth reference for the
+sampling estimator on small feature sets (capped by `max_features`).
+"Exact" refers to coalition sampling only: the marginalization error
+controlled by `n_samples` remains, and for
+[ConditionalSAGE](https://mlr-org.github.io/xplainfi/reference/ConditionalSAGE.md)
+the value function itself is a Monte Carlo estimate of the sampler.
+
 **Convergence and budget**: With `early_stopping = TRUE`, sampling stops
 once the largest SE, relative to the spread of the SAGE values
 (`max(se) / (max(phi) - min(phi))`), falls below `se_threshold`. This is
@@ -72,7 +83,8 @@ Information Processing Systems*, volume 33, 17212–17223.
 - `converged`:
 
   (`logical(1)`) Whether the convergence criterion was met
-  (`early_stopping = TRUE`).
+  (`early_stopping = TRUE`). `NA` for the exact estimator, which
+  enumerates all coalitions and has no criterion to meet.
 
 ## Active bindings
 
@@ -83,10 +95,12 @@ Information Processing Systems*, volume 33, 17212–17223.
   `unit` of budget, the `requested` upper bound, the amount `used`
   (below the request only with early stopping), the resulting number of
   coalition evaluations `n_evals` (one empty-coalition baseline plus
-  `n_features` per permutation), and whether the computation
-  `converged`. `used` and `n_evals` are `NA` before `$compute()`. With
-  multiple resampling iterations it describes the first iteration, whose
-  budget the remaining ones reuse (see `early_stopping`).
+  `n_features` per permutation; `2^n_features` for the exact estimator),
+  and whether the computation `converged`. `used` and `n_evals` are `NA`
+  before `$compute()`; `converged` is `NA` for the exact estimator,
+  which has no criterion to meet. With multiple resampling iterations it
+  describes the first iteration, whose budget the remaining ones reuse
+  (see `early_stopping`).
 
 - `n_permutations_used`:
 
@@ -98,7 +112,7 @@ Information Processing Systems*, volume 33, 17212–17223.
   (`integer(1)`) Deprecated. The permutation budget lives in the
   param_set; use `$param_set$values$n_permutations` instead. This alias
   is kept for backward compatibility with the field of the same name in
-  earlier releases and warns on access.
+  earlier releases and warns on every access.
 
 ## Methods
 
@@ -135,7 +149,9 @@ Creates a new instance of the SAGE class.
       measure = NULL,
       resampling = NULL,
       features = NULL,
-      n_permutations = 10L,
+      estimator = c("permutation", "exact"),
+      n_permutations = NULL,
+      max_features = 12L,
       batch_size = 5000L,
       n_samples = 100L,
       early_stopping = FALSE,
@@ -150,11 +166,33 @@ Creates a new instance of the SAGE class.
 
   Passed to FeatureImportanceMethod.
 
+- `estimator`:
+
+  (`character(1)`: `"permutation"`) Shapley-value estimator.
+  `"permutation"` is the permutation-sampling estimator of Covert et al.
+  (2020), budgeted by `n_permutations`; `"exact"` enumerates all
+  `2^n_features` coalitions (capped by `max_features`) and takes no
+  budget. Both approximate the same SAGE values; setting
+  `n_permutations` with `estimator = "exact"` is an error. Their costs
+  are comparable through the number of evaluated coalitions,
+  `1 + n_permutations * n_features` and `2^n_features`, respectively.
+  `$compute()` points out in a message (silenced by
+  `xplain_opt(verbose = FALSE)`) when the sampling budget meets or
+  exceeds the exact estimator's cost, since enumeration then removes the
+  coalition-sampling error at no extra cost.
+
 - `n_permutations`:
 
-  (`integer(1)`: `10L`) Number of permutations to sample for SAGE value
-  estimation. The total number of evaluated coalitions is
-  `1 (empty) + n_permutations * n_features`.
+  (`integer(1)`: `NULL`) Number of permutations for
+  `estimator = "permutation"`. Each permutation evaluates one coalition
+  per feature, so the cost is `1 + n_permutations * n_features`
+  evaluated coalitions. If unset, defaults to `10L`.
+
+- `max_features`:
+
+  (`integer(1)`: `12L`) Cap on the number of features for
+  `estimator = "exact"`, whose cost grows as `2^n_features`;
+  construction aborts above it.
 
 - `batch_size`:
 
@@ -248,7 +286,9 @@ Compute SAGE values.
 
 - `check_interval`:
 
-  (`integer(1)`: `1L`) Check convergence every N permutations.
+  (`integer(1)`: `1L`) Check convergence every N permutations. The
+  convergence arguments only apply to `estimator = "permutation"`;
+  passing them for the exact estimator is a warning.
 
 ------------------------------------------------------------------------
 

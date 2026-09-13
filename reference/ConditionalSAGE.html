@@ -108,7 +108,9 @@ Uses <a href="ConditionalARFSampler.html">ConditionalARFSampler</a> as default <
 <span>  measure <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  resampling <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  features <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  n_permutations <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"permutation"</span>, <span class="st">"exact"</span><span class="op">)</span>,</span>
+<span>  n_permutations <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_features <span class="op">=</span> <span class="fl">12L</span>,</span>
 <span>  sampler <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  batch_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
 <span>  n_samples <span class="op">=</span> <span class="fl">100L</span>,</span>
@@ -119,11 +121,14 @@ Uses <a href="ConditionalARFSampler.html">ConditionalARFSampler</a> as default <
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div><p></p><div class="section">
 <h4 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>task, learner, measure, resampling, features, n_permutations, batch_size, n_samples, early_stopping, se_threshold, min_permutations, check_interval</code></dt>
+<p></p><div class="arguments"><dl><dt><code>task, learner, measure, resampling, features, estimator, n_permutations, max_features</code></dt>
 <dd><p>Passed to <a href="SAGE.html">SAGE</a>.</p></dd>
 
       <dt><code>sampler</code></dt>
 <dd><p>(<a href="ConditionalSampler.html">ConditionalSampler</a>) Optional custom sampler. Defaults to <a href="ConditionalARFSampler.html">ConditionalARFSampler</a>.</p></dd>
+
+      <dt><code>batch_size, n_samples, early_stopping, se_threshold, min_permutations, check_interval</code></dt>
+<dd><p>Passed to <a href="SAGE.html">SAGE</a>.</p></dd>
 
 
 </dl><p></p></div>

@@ -55,7 +55,9 @@ Creates a new instance of the ConditionalSAGE class.
       measure = NULL,
       resampling = NULL,
       features = NULL,
-      n_permutations = 10L,
+      estimator = c("permutation", "exact"),
+      n_permutations = NULL,
+      max_features = 12L,
       sampler = NULL,
       batch_size = 5000L,
       n_samples = 100L,
@@ -67,7 +69,7 @@ Creates a new instance of the ConditionalSAGE class.
 
 #### Arguments
 
-- `task, learner, measure, resampling, features, n_permutations, batch_size, n_samples, early_stopping, se_threshold, min_permutations, check_interval`:
+- `task, learner, measure, resampling, features, estimator, n_permutations, max_features`:
 
   Passed to
   [SAGE](https://mlr-org.github.io/xplainfi/reference/SAGE.md).
@@ -77,6 +79,11 @@ Creates a new instance of the ConditionalSAGE class.
   ([ConditionalSampler](https://mlr-org.github.io/xplainfi/reference/ConditionalSampler.md))
   Optional custom sampler. Defaults to
   [ConditionalARFSampler](https://mlr-org.github.io/xplainfi/reference/ConditionalARFSampler.md).
+
+- `batch_size, n_samples, early_stopping, se_threshold, min_permutations, check_interval`:
+
+  Passed to
+  [SAGE](https://mlr-org.github.io/xplainfi/reference/SAGE.md).
 
 ------------------------------------------------------------------------
 

@@ -88,6 +88,13 @@ These SEs quantify the Monte Carlo sampling error for a fixed trained model
 and are only valid for inference about the importance of features for that
 specific model. They do not capture broader uncertainty from model variability
 across different train/test splits or resampling iterations.</p>
+<p><strong>Estimators</strong>: <code>estimator = "permutation"</code> (the default) is the permutation-sampling estimator of
+Covert et al. (2020), budgeted by <code>n_permutations</code>.
+<code>estimator = "exact"</code> enumerates all <code>2^n_features</code> coalitions and computes the Shapley values in closed
+form, so it has no coalition-sampling error and serves as a ground-truth reference for the sampling
+estimator on small feature sets (capped by <code>max_features</code>).
+"Exact" refers to coalition sampling only: the marginalization error controlled by <code>n_samples</code> remains,
+and for <a href="ConditionalSAGE.html">ConditionalSAGE</a> the value function itself is a Monte Carlo estimate of the sampler.</p>
 <p><strong>Convergence and budget</strong>: With <code>early_stopping = TRUE</code>, sampling stops once the largest SE,
 relative to the spread of the SAGE values (<code>max(se) / (max(phi) - min(phi))</code>), falls below
 <code>se_threshold</code>.
@@ -124,7 +131,8 @@ Columns <code>budget</code> (sampling effort in the estimator's own units, here 
 
 
     <dt><code>converged</code></dt>
-<dd><p>(<code>logical(1)</code>) Whether the convergence criterion was met (<code>early_stopping = TRUE</code>).</p></dd>
+<dd><p>(<code>logical(1)</code>) Whether the convergence criterion was met (<code>early_stopping = TRUE</code>).
+<code>NA</code> for the exact estimator, which enumerates all coalitions and has no criterion to meet.</p></dd>
 
 
 </dl><p></p></div>
@@ -135,9 +143,10 @@ Columns <code>budget</code> (sampling effort in the estimator's own units, here 
 <dd><p>(<code><a href="https://rdrr.io/pkg/data.table/man/data.table.html" class="external-link">data.table</a></code>) Read-only one-row summary of the sampling
 effort: the <code>estimator</code>, its <code>unit</code> of budget, the <code>requested</code> upper bound, the amount <code>used</code>
 (below the request only with early stopping), the resulting number of coalition evaluations
-<code>n_evals</code> (one empty-coalition baseline plus <code>n_features</code> per permutation), and whether the
-computation <code>converged</code>.
-<code>used</code> and <code>n_evals</code> are <code>NA</code> before <code>$compute()</code>.
+<code>n_evals</code> (one empty-coalition baseline plus <code>n_features</code> per permutation; <code>2^n_features</code> for the
+exact estimator), and whether the computation <code>converged</code>.
+<code>used</code> and <code>n_evals</code> are <code>NA</code> before <code>$compute()</code>; <code>converged</code> is <code>NA</code> for the exact estimator,
+which has no criterion to meet.
 With multiple resampling iterations it describes the first iteration, whose budget the
 remaining ones reuse (see <code>early_stopping</code>).</p></dd>
 
@@ -152,7 +161,7 @@ number of coalition evaluations.</p></dd>
 <dd><p>(<code>integer(1)</code>) Deprecated.
 The permutation budget lives in the param_set; use <code>$param_set$values$n_permutations</code> instead.
 This alias is kept for backward compatibility with the field of the same name in
-earlier releases and warns on access.</p></dd>
+earlier releases and warns on every access.</p></dd>
 
 
 </dl><p></p></div>
@@ -181,7 +190,9 @@ earlier releases and warns on access.</p></dd>
 <span>  measure <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  resampling <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  features <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  n_permutations <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"permutation"</span>, <span class="st">"exact"</span><span class="op">)</span>,</span>
+<span>  n_permutations <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_features <span class="op">=</span> <span class="fl">12L</span>,</span>
 <span>  batch_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
 <span>  n_samples <span class="op">=</span> <span class="fl">100L</span>,</span>
 <span>  early_stopping <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -194,9 +205,27 @@ earlier releases and warns on access.</p></dd>
 <p></p><div class="arguments"><dl><dt><code>task, learner, measure, resampling, features</code></dt>
 <dd><p>Passed to FeatureImportanceMethod.</p></dd>
 
+      <dt><code>estimator</code></dt>
+<dd><p>(<code>character(1)</code>: <code>"permutation"</code>) Shapley-value estimator.
+<code>"permutation"</code> is the permutation-sampling estimator of Covert et al. (2020), budgeted by
+<code>n_permutations</code>; <code>"exact"</code> enumerates all <code>2^n_features</code> coalitions (capped by <code>max_features</code>) and
+takes no budget.
+Both approximate the same SAGE values; setting <code>n_permutations</code> with <code>estimator = "exact"</code> is an error.
+Their costs are comparable through the number of evaluated coalitions,
+<code>1 + n_permutations * n_features</code> and <code>2^n_features</code>, respectively.
+<code>$compute()</code> points out in a message (silenced by <code>xplain_opt(verbose = FALSE)</code>) when the sampling
+budget meets or exceeds the exact estimator's cost, since enumeration then removes the
+coalition-sampling error at no extra cost.</p></dd>
+
       <dt><code>n_permutations</code></dt>
-<dd><p>(<code>integer(1)</code>: <code>10L</code>) Number of permutations to sample for SAGE value estimation.
-The total number of evaluated coalitions is <code>1 (empty) + n_permutations * n_features</code>.</p></dd>
+<dd><p>(<code>integer(1)</code>: <code>NULL</code>) Number of permutations for <code>estimator = "permutation"</code>.
+Each permutation evaluates one coalition per feature, so the cost is <code>1 + n_permutations * n_features</code>
+evaluated coalitions.
+If unset, defaults to <code>10L</code>.</p></dd>
+
+      <dt><code>max_features</code></dt>
+<dd><p>(<code>integer(1)</code>: <code>12L</code>) Cap on the number of features for <code>estimator = "exact"</code>,
+whose cost grows as <code>2^n_features</code>; construction aborts above it.</p></dd>
 
       <dt><code>batch_size</code></dt>
 <dd><p>(<code>integer(1)</code>: <code>5000L</code>) Maximum number of observations to process in a single prediction call.</p></dd>
@@ -266,7 +295,9 @@ detection scale-invariant. Default <code>0.025</code> means convergence when rel
 <dd><p>(<code>integer(1)</code>: <code>10L</code>) Minimum permutations before checking convergence.</p></dd>
 
       <dt><code>check_interval</code></dt>
-<dd><p>(<code>integer(1)</code>: <code>1L</code>) Check convergence every N permutations.</p></dd>
+<dd><p>(<code>integer(1)</code>: <code>1L</code>) Check convergence every N permutations.
+The convergence arguments only apply to <code>estimator = "permutation"</code>; passing them for the exact
+estimator is a warning.</p></dd>
 
 
 </dl><p></p></div>

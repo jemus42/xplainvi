@@ -2,6 +2,22 @@
 
 ## xplainfi (development version)
 
+### New features
+
+- `MarginalSAGE` and `ConditionalSAGE` gain an `estimator` argument
+  selecting the Shapley-value estimator
+  ([\#70](https://github.com/mlr-org/xplainfi/issues/70)).
+  - `"permutation"` (the default) is the previous behavior, controlled
+    by `n_permutations`.
+  - `"exact"` enumerates all coalitions on small feature sets (capped by
+    the new `max_features` argument) and computes SAGE values without
+    coalition-sampling error, useful as a ground-truth reference for the
+    sampling estimator. It takes no budget; setting `n_permutations`
+    with it is an error, and `$budget` reports `converged = NA`.
+  - `$compute()` points out in a message (if `xplain_opt("verbose")`)
+    when `n_permutations` costs at least as many coalition evaluations
+    as exact enumeration.
+
 ### Behavior changes
 
 - `SAGE` methods: `se_threshold` now defaults to `0.025` (was `0.01`),
@@ -28,7 +44,7 @@
     and `$budget`, which previously survived a reset.
 - `SAGE$n_permutations` is deprecated in favor of
   `$param_set$values$n_permutations`; it remains readable and writable
-  as an alias but warns once per session on access.
+  as an alias but warns on access.
 
 ### Bug fixes
 

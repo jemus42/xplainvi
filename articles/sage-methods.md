@@ -121,6 +121,11 @@ marginal_sage = MarginalSAGE$new(
 
 # Compute SAGE values
 marginal_sage$compute(batch_size = 5000L)
+#> ℹ The permutation estimator will evaluate 61 coalitions, at least as many as
+#>   enumerating all 16 (2^4) coalitions.
+#> ℹ `estimator = "exact"` computes SAGE values without coalition-sampling error
+#>   at the same or lower cost (for <ConditionalSAGE>, oversampling can still be
+#>   deliberate; see the `estimator` docs).
 ```
 
 Let’s visualize the results:
@@ -191,6 +196,56 @@ If a resampling with multiple iterations (i.e., not holdout) is
 supplied, the budget used by the first iteration is reused for all
 subsequent iterations to avoid some computational overhead.
 
+### Exact SAGE for verification
+
+When the number of features is small, you can sidestep coalition
+sampling entirely and compute the SAGE values *exactly* with
+`estimator = "exact"`, which enumerates all `2^p` coalitions:
+
+``` r
+
+task_small = sim_dgp_correlated(n = 500) # four features
+resampling_s = rsmp("holdout")
+resampling_s$instantiate(task_small)
+
+sage_exact = MarginalSAGE$new(
+    task = task_small,
+    learner = lrn("regr.ranger", num.trees = 50),
+    measure = msr("regr.mse"),
+    resampling = resampling_s,
+    estimator = "exact",
+    n_samples = 50L
+)
+sage_exact$compute()
+sage_exact$importance()
+#> Key: <feature>
+#>    feature   importance
+#>     <char>        <num>
+#> 1:      x1 3.6119327521
+#> 2:      x2 0.9453853599
+#> 3:      x3 1.0162338405
+#> 4:      x4 0.0004490675
+sage_exact$budget
+#>    estimator       unit requested  used n_evals converged
+#>       <char>     <char>     <num> <num>   <num>    <lgcl>
+#> 1:     exact coalitions        16    16      16        NA
+```
+
+This is guarded by `max_features` (default 12), since the number of
+coalitions grows as `2^p`. It carries no coalition-sampling error, so
+for `MarginalSAGE` it yields the exact Shapley values of the value
+function that the permutation estimator approximates, which makes it a
+convenient ground-truth reference when validating or comparing
+estimators. The costs are directly comparable via the number of
+evaluated coalitions (`$budget$n_evals`): `1 + n_permutations * p` for
+the permutation estimator and `2^p` for exact enumeration. When a
+permutation budget meets or exceeds the exact cost, `$compute()` points
+this out in a message (silenced by `xplain_opt(verbose = FALSE)`). Note
+that “exact” refers to coalition sampling only: the *marginalization
+error* controlled by `n_samples` remains, and for `ConditionalSAGE` the
+value function is itself estimated by a sampler, so “exact” removes the
+coalition-sampling error but not the sampler’s Monte Carlo error.
+
 ## Conditional SAGE
 
 Conditional SAGE uses conditional sampling (via ARF by default) to
@@ -215,6 +270,11 @@ conditional_sage = ConditionalSAGE$new(
 
 # Compute SAGE values
 conditional_sage$compute(batch_size = 5000L)
+#> ℹ The permutation estimator will evaluate 61 coalitions, at least as many as
+#>   enumerating all 16 (2^4) coalitions.
+#> ℹ `estimator = "exact"` computes SAGE values without coalition-sampling error
+#>   at the same or lower cost (for <ConditionalSAGE>, oversampling can still be
+#>   deliberate; see the `estimator` docs).
 ```
 
 Let’s visualize the conditional SAGE results:

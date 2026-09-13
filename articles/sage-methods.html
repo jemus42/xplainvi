@@ -211,7 +211,12 @@ build coalitions, resulting in 61 evaluated coalitions
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Compute SAGE values</span></span>
-<span><span class="va">marginal_sage</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fl">5000L</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">marginal_sage</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fl">5000L</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> The permutation estimator will evaluate 61 coalitions, at least as many as</span></span>
+<span><span class="co">#&gt;   enumerating all 16 (2^4) coalitions.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> `estimator = "exact"` computes SAGE values without coalition-sampling error</span></span>
+<span><span class="co">#&gt;   at the same or lower cost (for <span style="color: #0000BB;">&lt;ConditionalSAGE&gt;</span>, oversampling can still be</span></span>
+<span><span class="co">#&gt;   deliberate; see the `estimator` docs).</span></span></code></pre></div>
 <p>Let’s visualize the results:</p>
 <p><img src="sage-methods_files/figure-html/marginal-sage-plot-1.png" class="r-plt" alt="Bar chart with features on x-axis and SAGE values on y-axis. Bars colored by feature type (causal vs noise)." width="768"></p>
 <p>We can also keep track of the SAGE value approximation across
@@ -260,6 +265,57 @@ whether the criterion was met:</p>
 supplied, the budget used by the first iteration is reused for all
 subsequent iterations to avoid some computational overhead.</p>
 </div>
+<div class="section level3">
+<h3 id="exact-sage-for-verification">Exact SAGE for verification<a class="anchor" aria-label="anchor" href="#exact-sage-for-verification"></a>
+</h3>
+<p>When the number of features is small, you can sidestep coalition
+sampling entirely and compute the SAGE values <em>exactly</em> with
+<code>estimator = "exact"</code>, which enumerates all <code>2^p</code>
+coalitions:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">task_small</span> <span class="op">=</span> <span class="fu"><a href="../reference/sim_dgp_scenarios.html">sim_dgp_correlated</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">500</span><span class="op">)</span> <span class="co"># four features</span></span>
+<span><span class="va">resampling_s</span> <span class="op">=</span> <span class="fu"><a href="https://mlr3.mlr-org.com/reference/mlr_sugar.html" class="external-link">rsmp</a></span><span class="op">(</span><span class="st">"holdout"</span><span class="op">)</span></span>
+<span><span class="va">resampling_s</span><span class="op">$</span><span class="fu">instantiate</span><span class="op">(</span><span class="va">task_small</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sage_exact</span> <span class="op">=</span> <span class="va"><a href="../reference/MarginalSAGE.html">MarginalSAGE</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span></span>
+<span>    task <span class="op">=</span> <span class="va">task_small</span>,</span>
+<span>    learner <span class="op">=</span> <span class="fu"><a href="https://mlr3.mlr-org.com/reference/mlr_sugar.html" class="external-link">lrn</a></span><span class="op">(</span><span class="st">"regr.ranger"</span>, num.trees <span class="op">=</span> <span class="fl">50</span><span class="op">)</span>,</span>
+<span>    measure <span class="op">=</span> <span class="fu"><a href="https://mlr3.mlr-org.com/reference/mlr_sugar.html" class="external-link">msr</a></span><span class="op">(</span><span class="st">"regr.mse"</span><span class="op">)</span>,</span>
+<span>    resampling <span class="op">=</span> <span class="va">resampling_s</span>,</span>
+<span>    estimator <span class="op">=</span> <span class="st">"exact"</span>,</span>
+<span>    n_samples <span class="op">=</span> <span class="fl">50L</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">sage_exact</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">sage_exact</span><span class="op">$</span><span class="fu">importance</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Key: &lt;feature&gt;</span></span>
+<span><span class="co">#&gt;    feature   importance</span></span>
+<span><span class="co">#&gt;     &lt;char&gt;        &lt;num&gt;</span></span>
+<span><span class="co">#&gt; 1:      x1 3.6119327521</span></span>
+<span><span class="co">#&gt; 2:      x2 0.9453853599</span></span>
+<span><span class="co">#&gt; 3:      x3 1.0162338405</span></span>
+<span><span class="co">#&gt; 4:      x4 0.0004490675</span></span>
+<span><span class="va">sage_exact</span><span class="op">$</span><span class="va">budget</span></span>
+<span><span class="co">#&gt;    estimator       unit requested  used n_evals converged</span></span>
+<span><span class="co">#&gt;       &lt;char&gt;     &lt;char&gt;     &lt;num&gt; &lt;num&gt;   &lt;num&gt;    &lt;lgcl&gt;</span></span>
+<span><span class="co">#&gt; 1:     exact coalitions        16    16      16        NA</span></span></code></pre></div>
+<p>This is guarded by <code>max_features</code> (default 12), since the
+number of coalitions grows as <code>2^p</code>. It carries no
+coalition-sampling error, so for <code>MarginalSAGE</code> it yields the
+exact Shapley values of the value function that the permutation
+estimator approximates, which makes it a convenient ground-truth
+reference when validating or comparing estimators. The costs are
+directly comparable via the number of evaluated coalitions
+(<code>$budget$n_evals</code>): <code>1 + n_permutations * p</code> for
+the permutation estimator and <code>2^p</code> for exact enumeration.
+When a permutation budget meets or exceeds the exact cost,
+<code>$compute()</code> points this out in a message (silenced by
+<code>xplain_opt(verbose = FALSE)</code>). Note that “exact” refers to
+coalition sampling only: the <em>marginalization error</em> controlled
+by <code>n_samples</code> remains, and for <code>ConditionalSAGE</code>
+the value function is itself estimated by a sampler, so “exact” removes
+the coalition-sampling error but not the sampler’s Monte Carlo
+error.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="conditional-sage">Conditional SAGE<a class="anchor" aria-label="anchor" href="#conditional-sage"></a>
@@ -268,7 +324,7 @@ subsequent iterations to avoid some computational overhead.</p>
 marginalize features while preserving dependencies between the remaining
 features. This can provide different insights, especially when features
 are correlated.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create Conditional SAGE instance using a conditional sampler</span></span>
 <span><span class="va">sampler_gaussian</span> <span class="op">=</span> <span class="va"><a href="../reference/ConditionalGaussianSampler.html">ConditionalGaussianSampler</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">task</span><span class="op">)</span></span>
 <span></span>
@@ -283,10 +339,15 @@ are correlated.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Compute SAGE values</span></span>
-<span><span class="va">conditional_sage</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fl">5000L</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">conditional_sage</span><span class="op">$</span><span class="fu">compute</span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fl">5000L</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> The permutation estimator will evaluate 61 coalitions, at least as many as</span></span>
+<span><span class="co">#&gt;   enumerating all 16 (2^4) coalitions.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> `estimator = "exact"` computes SAGE values without coalition-sampling error</span></span>
+<span><span class="co">#&gt;   at the same or lower cost (for <span style="color: #0000BB;">&lt;ConditionalSAGE&gt;</span>, oversampling can still be</span></span>
+<span><span class="co">#&gt;   deliberate; see the `estimator` docs).</span></span></code></pre></div>
 <p>Let’s visualize the conditional SAGE results:</p>
 <p><img src="sage-methods_files/figure-html/conditional-sage-plot-1.png" class="r-plt" alt="Bar chart with features on x-axis and SAGE values on y-axis. Bars colored by feature type (causal vs noise)." width="768"></p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conditional_sage</span><span class="op">$</span><span class="fu">plot_convergence</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: Removed 4 rows containing missing values or values outside the scale range</span></span>
 <span><span class="co">#&gt; (`geom_ribbon()`).</span></span></code></pre></div>
@@ -323,7 +384,7 @@ guidance on best practices for different settings.</p>
 </h2>
 <p>For reference, let’s compare SAGE methods with the analogous PFI and
 CFI methods on the same data:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Quick PFI and CFI comparison for context</span></span>
 <span><span class="va">pfi</span> <span class="op">=</span> <span class="va"><a href="../reference/PFI.html">PFI</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">task</span>, <span class="va">learner</span>, <span class="va">measure</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> No <span style="color: #0000BB;">&lt;Resampling&gt;</span> provided, using `resampling = rsmp("holdout", ratio = 2/3)`</span></span>
